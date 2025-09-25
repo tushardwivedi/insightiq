@@ -22,14 +22,62 @@ export default function ResultsSection({ results, loading }: Props) {
         className="relative overflow-hidden bg-white rounded-xl shadow-lg p-8 border border-gray-200"
       >
         <div className="absolute inset-0 bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 opacity-50"></div>
-        <div className="relative flex items-center justify-center">
-          <div className="relative">
-            <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-500/20 border-t-blue-500"></div>
-            <Sparkles className="absolute inset-0 m-auto w-4 h-4 text-blue-500 animate-pulse" />
+        <div className="relative flex flex-col items-center justify-center space-y-6">
+          {/* Modern pulsing dots animation */}
+          <div className="flex space-x-2">
+            {[0, 1, 2].map((index) => (
+              <motion.div
+                key={index}
+                className="w-3 h-3 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full"
+                animate={{
+                  scale: [1, 1.3, 1],
+                  opacity: [0.7, 1, 0.7]
+                }}
+                transition={{
+                  duration: 0.8,
+                  repeat: Infinity,
+                  delay: index * 0.2,
+                  ease: "easeInOut"
+                }}
+              />
+            ))}
           </div>
-          <span className="ml-3 text-lg font-medium bg-gradient-to-r from-gray-700 to-gray-500 bg-clip-text text-transparent">
-            Processing your query with AI magic...
-          </span>
+
+          {/* Animated text */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="text-center"
+          >
+            <motion.span
+              className="text-lg font-medium bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent"
+              animate={{ opacity: [0.6, 1, 0.6] }}
+              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+            >
+              Analyzing your data with AI
+            </motion.span>
+            <div className="flex items-center justify-center mt-2">
+              <Brain className="w-5 h-5 text-blue-500 mr-2" />
+              <motion.div className="flex space-x-1">
+                {['●', '●', '●'].map((dot, index) => (
+                  <motion.span
+                    key={index}
+                    className="text-blue-500"
+                    animate={{ opacity: [0.3, 1, 0.3] }}
+                    transition={{
+                      duration: 1.2,
+                      repeat: Infinity,
+                      delay: index * 0.3,
+                      ease: "easeInOut"
+                    }}
+                  >
+                    {dot}
+                  </motion.span>
+                ))}
+              </motion.div>
+            </div>
+          </motion.div>
         </div>
       </motion.div>
     )
@@ -44,30 +92,19 @@ export default function ResultsSection({ results, loading }: Props) {
       >
         <div className="absolute inset-0 bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50 opacity-50"></div>
         <div className="relative">
-          <motion.div
-            animate={{
-              rotate: [0, 10, -10, 0],
-              scale: [1, 1.1, 1]
-            }}
-            transition={{
-              duration: 4,
-              repeat: Infinity,
-              ease: "easeInOut"
-            }}
-            className="w-16 h-16 mx-auto mb-4 bg-gradient-to-r from-blue-100 to-purple-100 rounded-full flex items-center justify-center"
-          >
+          <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-r from-blue-100 to-purple-100 rounded-full flex items-center justify-center">
             <Brain className="w-8 h-8 text-blue-600" />
-          </motion.div>
+          </div>
           <h3 className="text-xl font-semibold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent mb-2">
-            Ready for AI Magic
+            Ready for AI Analysis
           </h3>
-          <p className="text-gray-600">Submit a query above to see stunning analytics visualizations</p>
+          <p className="text-gray-600">Submit a query above to see intelligent data insights and visualizations</p>
         </div>
       </motion.div>
     )
   }
 
-  const analyticsData = 'result' in results ? results.result : results
+  const analyticsData = 'response' in results ? results.response : results
   const transcript = 'transcript' in results ? results.transcript : null
 
   return (
@@ -83,16 +120,26 @@ export default function ResultsSection({ results, loading }: Props) {
         <div className="relative p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <motion.div
-                animate={{ rotate: [0, 360] }}
-                transition={{ duration: 2, ease: "linear", repeat: Infinity }}
-                className="p-2 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg"
+              <div className="relative">
+                <motion.div
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: "spring", duration: 0.8 }}
+                  className="p-2 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg shadow-lg relative z-10"
+                >
+                  <Brain className="w-5 h-5 text-white" />
+                </motion.div>
+                {/* Static glow effect - no animation */}
+                <div className="absolute inset-0 bg-gradient-to-r from-indigo-400 to-purple-500 rounded-lg opacity-30 blur-sm scale-110"></div>
+              </div>
+              <motion.h2
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.3 }}
+                className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent"
               >
-                <Brain className="w-5 h-5 text-white" />
-              </motion.div>
-              <h2 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
                 AI Analysis Results
-              </h2>
+              </motion.h2>
             </div>
 
             {/* View Toggle */}

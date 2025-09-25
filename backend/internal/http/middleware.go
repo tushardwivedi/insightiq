@@ -2,7 +2,6 @@
 package http
 
 import (
-	"fmt"
 	"net/http"
 	"sync"
 	"time"

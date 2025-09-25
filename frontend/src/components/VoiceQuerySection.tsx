@@ -31,7 +31,9 @@ export default function VoiceQuerySection({ onResult, onLoading }: Props) {
       }
 
       mediaRecorderRef.current.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: 'audio/wav' })
+        // Use the MediaRecorder's actual MIME type
+        const mimeType = mediaRecorderRef.current?.mimeType || 'audio/webm;codecs=opus'
+        const blob = new Blob(chunksRef.current, { type: mimeType })
         setRecordedBlob(blob)
         stream.getTracks().forEach(track => track.stop())
       }
@@ -40,6 +42,7 @@ export default function VoiceQuerySection({ onResult, onLoading }: Props) {
       setIsRecording(true)
     } catch (error) {
       console.error('Error starting recording:', error)
+      alert('Microphone access denied or not available. Please check your browser permissions and try again.')
     }
   }
 
@@ -59,6 +62,23 @@ export default function VoiceQuerySection({ onResult, onLoading }: Props) {
       onResult(result)
     } catch (error) {
       console.error('Voice query failed:', error)
+      // Show error to user by creating an error response
+      const errorMessage = error instanceof Error ? error.message : 'Failed to process voice query'
+      onResult({
+        transcript: 'Error processing audio',
+        response: {
+          query: 'Voice query failed',
+          data: [],
+          insights: `Error: ${errorMessage}. Please check if the microphone is working and try again.`,
+          timestamp: new Date().toISOString(),
+          process_time: '0ms',
+          task_id: 'error',
+          status: 'failed'
+        },
+        task_id: 'error',
+        process_time: '0ms',
+        status: 'failed'
+      })
     } finally {
       setIsProcessing(false)
       onLoading(false)
@@ -67,7 +87,14 @@ export default function VoiceQuerySection({ onResult, onLoading }: Props) {
 
   const handleRecordedAudio = () => {
     if (recordedBlob) {
-      const file = new File([recordedBlob], 'recording.wav', { type: 'audio/wav' })
+      // Determine file extension from MIME type
+      let extension = 'webm'
+      if (recordedBlob.type.includes('wav')) extension = 'wav'
+      else if (recordedBlob.type.includes('mp3')) extension = 'mp3'
+      else if (recordedBlob.type.includes('m4a')) extension = 'm4a'
+      else if (recordedBlob.type.includes('ogg')) extension = 'ogg'
+
+      const file = new File([recordedBlob], `recording.${extension}`, { type: recordedBlob.type })
       processAudio(file)
       setRecordedBlob(null)
     }
@@ -162,6 +189,16 @@ export default function VoiceQuerySection({ onResult, onLoading }: Props) {
           onChange={handleFileUpload}
           className="hidden"
         />
+
+        <div className="mt-4 text-sm text-gray-500">
+          <p className="font-medium mb-1">Voice Query Instructions:</p>
+          <ul className="space-y-1">
+            <li>• Click "Start Recording" and speak your query clearly</li>
+            <li>• Try: "Show me sales trends for last quarter"</li>
+            <li>• Or upload an audio file with your question</li>
+            <li>• Supported formats: WAV, MP3, M4A</li>
+          </ul>
+        </div>
       </div>
     </div>
   )

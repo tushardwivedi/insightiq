@@ -58,7 +58,12 @@ export default function TextQuerySection({ onResult, onLoading }: Props) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Ask about your data... e.g., 'Show me sales trends for the last 6 months'"
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-gray-900 bg-white placeholder-gray-500 dark:text-gray-900 dark:bg-white dark:placeholder-gray-500"
+            style={{
+              color: '#111827',
+              backgroundColor: '#ffffff',
+              border: '1px solid #d1d5db'
+            }}
             rows={3}
             disabled={isSubmitting}
           />

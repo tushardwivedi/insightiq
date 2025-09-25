@@ -21,7 +21,10 @@ export interface AnalyticsResponse {
 
 export interface VoiceResponse {
   transcript: string;
-  result: AnalyticsResponse;
+  response: AnalyticsResponse;
+  task_id: string;
+  process_time: string;
+  status: string;
 }
 
 export interface TextQuery {

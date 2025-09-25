@@ -50,7 +50,12 @@ export default function SQLQuerySection({ onResult, onLoading }: Props) {
           <textarea
             value={sql}
             onChange={(e) => setSql(e.target.value)}
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent font-mono text-sm"
+            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent font-mono text-sm text-gray-900 bg-white placeholder-gray-500 dark:text-gray-900 dark:bg-white dark:placeholder-gray-500"
+            style={{
+              color: '#111827',
+              backgroundColor: '#ffffff',
+              border: '1px solid #d1d5db'
+            }}
             rows={4}
             disabled={isSubmitting}
           />
@@ -64,7 +69,12 @@ export default function SQLQuerySection({ onResult, onLoading }: Props) {
             type="text"
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-900 bg-white placeholder-gray-500 dark:text-gray-900 dark:bg-white dark:placeholder-gray-500"
+            style={{
+              color: '#111827',
+              backgroundColor: '#ffffff',
+              border: '1px solid #d1d5db'
+            }}
             disabled={isSubmitting}
           />
         </div>
