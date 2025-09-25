@@ -28,14 +28,19 @@ func NewServer(analytics *services.AnalyticsService, voice *services.VoiceServic
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Apply middleware
-	handler := s.corsMiddleware(s.loggingMiddleware(s.mux))
+	// Apply security middleware stack
+	handler := s.corsMiddleware(
+		s.securityMiddleware(
+			s.rateLimitMiddleware(
+				s.loggingMiddleware(s.mux))))
 	handler.ServeHTTP(w, r)
 }
 
 func (s *Server) setupRoutes() {
 	// API routes
 	s.mux.HandleFunc("/api/health", s.handleHealth)
+	s.mux.HandleFunc("/api/test-postgres", s.handleTestPostgres)
+	s.mux.HandleFunc("/api/direct-query", s.handleDirectAnalytics)
 	s.mux.HandleFunc("/api/query", s.handleTextQuery)
 	s.mux.HandleFunc("/api/voice", s.handleVoiceQuery)
 	s.mux.HandleFunc("/api/sql", s.handleSQLQuery)

@@ -1,0 +1,138 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine3.20
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-superset}
+      POSTGRES_USER: ${POSTGRES_USER:-superset}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-superset}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    ports:
+      - "127.0.0.1:5432:5432"
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U superset"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend-network
+    restart: unless-stopped
+
+  # Apache SuperSet
+  superset:
+    image: apache/superset:3.1.3
+    env_file:
+      - .env
+    environment:
+      - SUPERSET_CONFIG_PATH=/app/superset_config.py
+    volumes:
+      - ./superset_config.py:/app/superset_config.py:ro
+    ports:
+      - "127.0.0.1:8088:8088"
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend-network
+    restart: unless-stopped
+    command: >
+      sh -c "
+      superset db upgrade &&
+      superset fab create-admin --username ${SUPERSET_USERNAME:-admin} --firstname Admin --lastname User --email ${SUPERSET_EMAIL:-admin@example.com} --password ${SUPERSET_PASSWORD:-admin} &&
+      superset init &&
+      superset run -h 0.0.0.0 -p 8088
+      "
+
+  # Ollama LLM Server
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    networks:
+      - backend-network
+    restart: unless-stopped
+
+  # Whisper ASR
+  whisper:
+    image: onerahmet/openai-whisper-asr-webservice:latest
+    ports:
+      - "127.0.0.1:9000:9000"
+    environment:
+      - ASR_MODEL=base
+      - ASR_ENGINE=openai_whisper
+    networks:
+      - backend-network
+    restart: unless-stopped
+
+  # Go Backend
+  agent:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:8080:8080"
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      - postgres
+      - ollama
+      - whisper
+    environment:
+      - SUPERSET_URL=${SUPERSET_URL:-http://superset:8088}
+      - SUPERSET_USERNAME=${SUPERSET_USERNAME:-admin}
+      - SUPERSET_PASSWORD=${SUPERSET_PASSWORD:-admin}
+      - OLLAMA_URL=${OLLAMA_URL:-http://ollama:11434}
+      - WHISPER_URL=${WHISPER_URL:-http://whisper:9000}
+      - POSTGRES_URL=${POSTGRES_URL:-postgres://superset:superset@postgres:5432/superset?sslmode=disable}
+    networks:
+      - backend-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Next.js Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:3000:3000"
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      - agent
+    environment:
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+    networks:
+      - frontend-network
+      - backend-network
+    restart: unless-stopped
+
+networks:
+  backend-network:
+    driver: bridge
+  frontend-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  ollama_data:

@@ -68,9 +68,10 @@ func (as *AnalyticsService) ProcessQuery(ctx context.Context, query string) (*An
 	}
 
 	// Wait for result (in production, this would be async with callbacks)
-	result, err := as.waitForResult(ctx, taskID, 60*time.Second)
+	result, err := as.waitForResult(ctx, taskID, 30*time.Second)
 	if err != nil {
-		return nil, err
+		as.logger.Error("Failed to get task result", "task_id", taskID, "error", err)
+		return nil, fmt.Errorf("analytics agent failed: %w", err)
 	}
 
 	// Parse result into response
@@ -91,8 +92,8 @@ func (as *AnalyticsService) ProcessQuery(ctx context.Context, query string) (*An
 			response.Insights = insights
 		}
 	} else {
-		response.Status = "failed"
-		return response, fmt.Errorf("task failed: %s", result.Error)
+		as.logger.Error("Task failed", "task_id", taskID, "status", result.Status, "error", result.Error)
+		return nil, fmt.Errorf("task failed with status %s: %s", result.Status, result.Error)
 	}
 
 	as.logger.Info("Query processed successfully",
@@ -180,9 +181,13 @@ func (as *AnalyticsService) GetAgentStatus() map[string]interface{} {
 
 // Helper function to wait for task results
 func (as *AnalyticsService) waitForResult(ctx context.Context, taskID string, timeout time.Duration) (*agent.TaskResult, error) {
-	// In production, this would be done with channels or callbacks
-	// For MVP, we'll simulate waiting (this is a simplified approach)
+	// Get the result from agent manager
+	result := as.agentManager.GetTaskResult(taskID)
+	if result != nil {
+		return result, nil
+	}
 
+	// Wait for the task to complete with polling
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -194,25 +199,10 @@ func (as *AnalyticsService) waitForResult(ctx context.Context, taskID string, ti
 		case <-ctx.Done():
 			return nil, fmt.Errorf("task timeout: %s", taskID)
 		case <-ticker.C:
-			// In a real implementation, you'd check a result store or channel
-			// For now, we'll simulate a completed task after a short delay
-
-			// This is a mock - in production, you'd integrate with the agent manager's result system
-			return &agent.TaskResult{
-				TaskID:  taskID,
-				AgentID: "analytics-1",
-				Status:  agent.TaskStatusCompleted,
-				Result: map[string]interface{}{
-					"data": []map[string]interface{}{
-						{"month": "2024-01", "revenue": 50000, "orders": 150},
-						{"month": "2024-02", "revenue": 60000, "orders": 180},
-						{"month": "2024-03", "revenue": 55000, "orders": 165},
-					},
-					"insights": "Revenue shows steady growth with Q1 averaging $55K per month. Order volume correlates positively with revenue, suggesting stable customer acquisition.",
-				},
-				ProcessedAt: time.Now(),
-				Duration:    2 * time.Second,
-			}, nil
+			result := as.agentManager.GetTaskResult(taskID)
+			if result != nil {
+				return result, nil
+			}
 		}
 	}
 }

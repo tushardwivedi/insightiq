@@ -39,7 +39,7 @@ func NewOllamaConnector(baseURL string, logger *slog.Logger) *OllamaConnector {
 
 func (oc *OllamaConnector) GenerateResponse(ctx context.Context, prompt string) (string, error) {
 	request := OllamaRequest{
-		Model:  "llama3.2:3b",
+		Model:  "llama3.2:1b",
 		Prompt: prompt,
 		Stream: false,
 	}
@@ -70,25 +70,27 @@ func (oc *OllamaConnector) GenerateResponse(ctx context.Context, prompt string) 
 }
 
 func (oc *OllamaConnector) AnalyzeData(ctx context.Context, data []map[string]interface{}, question string) (string, error) {
-	dataJSON, _ := json.MarshalIndent(data, "", "  ")
+	// Use only 3 sample records to keep prompt short and fast
+	sampleSize := min(3, len(data))
+	sampleData := data[:sampleSize]
 
-	prompt := fmt.Sprintf(`
-You are a data analyst. Analyze the following data and answer the question.
+	dataJSON, _ := json.MarshalIndent(sampleData, "", "  ")
 
-Data:
+	prompt := fmt.Sprintf(`Analyze bike sales data (%d total records). Sample:
 %s
 
 Question: %s
 
-Please provide insights in a clear, concise manner. Include:
-1. Key findings from the data
-2. Trends or patterns you notice  
-3. Actionable recommendations
-4. Specific numbers and metrics
-
-Answer:`, string(dataJSON), question)
+Provide 2-3 key insights in 50 words or less.`, len(data), string(dataJSON), question)
 
 	return oc.GenerateResponse(ctx, prompt)
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func (oc *OllamaConnector) HealthCheck(ctx context.Context) error {

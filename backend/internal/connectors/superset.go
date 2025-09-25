@@ -36,7 +36,7 @@ func NewSuperSetConnector(baseURL, username, password string, logger *slog.Logge
 		username: username,
 		password: password,
 		client: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout: 60 * time.Second,
 		},
 		logger: logger.With("connector", "superset"),
 	}
@@ -119,17 +119,13 @@ func (sc *SuperSetConnector) ExecuteSQL(ctx context.Context, sql string) (*Super
 
 func (sc *SuperSetConnector) GetSampleData(ctx context.Context) (*SuperSetResponse, error) {
 	sql := `
-    SELECT 
-        DATE_TRUNC('month', created_at) as month,
-        product_category,
-        SUM(revenue) as total_revenue,
-        COUNT(*) as order_count,
-        AVG(revenue) as avg_order_value
-    FROM sample_sales 
-    WHERE created_at >= NOW() - INTERVAL '12 months'
-    GROUP BY month, product_category
-    ORDER BY month DESC, total_revenue DESC
-    LIMIT 50
+    SELECT
+        quarter,
+        bike_category,
+        total_revenue,
+        total_bikes_sold
+    FROM bike_sales
+    ORDER BY quarter, bike_category
     `
 
 	return sc.ExecuteSQL(ctx, sql)

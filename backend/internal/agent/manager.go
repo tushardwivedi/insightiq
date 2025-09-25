@@ -13,6 +13,7 @@ type Manager struct {
 	agents      map[string]Agent
 	taskQueue   chan Task
 	resultQueue chan TaskResult
+	results     map[string]*TaskResult
 	logger      *slog.Logger
 	mu          sync.RWMutex
 
@@ -26,6 +27,7 @@ func NewManager(logger *slog.Logger) *Manager {
 		agents:      make(map[string]Agent),
 		taskQueue:   make(chan Task, 1000),
 		resultQueue: make(chan TaskResult, 1000),
+		results:     make(map[string]*TaskResult),
 		logger:      logger.With("component", "agent_manager"),
 	}
 }
@@ -102,7 +104,7 @@ func (m *Manager) dispatchTask(task Task) {
 		return
 	}
 
-	// Create task context
+	// Create task context with sufficient timeout for LLM processing
 	ctx, cancel := context.WithTimeout(context.Background(), task.Timeout)
 	defer cancel()
 
@@ -113,6 +115,21 @@ func (m *Manager) dispatchTask(task Task) {
 				"task_id", task.ID,
 				"agent_id", task.AgentID,
 				"error", err)
+
+			// Create a failed task result
+			failedResult := TaskResult{
+				TaskID:      task.ID,
+				AgentID:     task.AgentID,
+				Status:      TaskStatusFailed,
+				Error:       err.Error(),
+				ProcessedAt: time.Now(),
+			}
+
+			select {
+			case m.resultQueue <- failedResult:
+			case <-ctx.Done():
+				m.logger.Warn("Failed result queue timeout", "task_id", task.ID)
+			}
 		} else if result != nil {
 			select {
 			case m.resultQueue <- *result:
@@ -132,7 +149,11 @@ func (m *Manager) resultCollector(ctx context.Context) {
 				"agent_id", result.AgentID,
 				"status", result.Status,
 				"duration", result.Duration)
-			// Here you could store results, send to external systems, etc.
+
+			// Store the result for retrieval
+			m.mu.Lock()
+			m.results[result.TaskID] = &result
+			m.mu.Unlock()
 
 		case <-ctx.Done():
 			m.logger.Info("Result collector stopping")
@@ -178,4 +199,14 @@ func (m *Manager) GetAgentStatus() map[string]HealthStatus {
 	}
 
 	return status
+}
+
+func (m *Manager) GetTaskResult(taskID string) *TaskResult {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if result, exists := m.results[taskID]; exists {
+		return result
+	}
+	return nil
 }

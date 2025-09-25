@@ -106,8 +106,8 @@ func (ba *BaseAgent) processTask(task Task) {
 		ProcessedAt: time.Now(),
 	}
 
-	// Create task-specific context with timeout
-	taskCtx, cancel := context.WithTimeout(ba.ctx, task.Timeout)
+	// Create task-specific context with timeout (independent of agent context)
+	taskCtx, cancel := context.WithTimeout(context.Background(), task.Timeout)
 	defer cancel()
 
 	// Process task (override in specific agents)

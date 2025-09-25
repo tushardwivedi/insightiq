@@ -13,13 +13,15 @@ import (
 type AnalyticsAgent struct {
 	*BaseAgent
 	supersetConn *connectors.SuperSetConnector
+	postgresConn *connectors.PostgresConnector
 	llmConn      *connectors.OllamaConnector
 }
 
-func NewAnalyticsAgent(id string, superset *connectors.SuperSetConnector, llm *connectors.OllamaConnector, logger *slog.Logger) *AnalyticsAgent {
+func NewAnalyticsAgent(id string, superset *connectors.SuperSetConnector, postgres *connectors.PostgresConnector, llm *connectors.OllamaConnector, logger *slog.Logger) *AnalyticsAgent {
 	return &AnalyticsAgent{
 		BaseAgent:    NewBaseAgent(id, AgentTypeAnalytics, logger),
 		supersetConn: superset,
+		postgresConn: postgres,
 		llmConn:      llm,
 	}
 }
@@ -43,14 +45,37 @@ func (aa *AnalyticsAgent) processTextQuery(ctx context.Context, task Task) (*Tas
 
 	aa.logger.Info("Processing text query", "query", query)
 
-	// Get data from SuperSet
-	data, err := aa.supersetConn.GetSampleData(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get data: %w", err)
+	// Try to get data from PostgreSQL first, fallback to SuperSet
+	var data []map[string]interface{}
+	var err error
+
+	if aa.postgresConn != nil {
+		result, pgErr := aa.postgresConn.GetBikeSalesData(ctx)
+		if pgErr != nil {
+			aa.logger.Warn("PostgreSQL query failed, trying SuperSet", "error", pgErr)
+		} else {
+			data = result.Data
+			aa.logger.Info("Got data from PostgreSQL", "rows", len(data))
+		}
+	}
+
+	// Fallback to SuperSet if PostgreSQL failed
+	if len(data) == 0 && aa.supersetConn != nil {
+		supersetData, err := aa.supersetConn.GetSampleData(ctx)
+		if err != nil {
+			aa.logger.Error("Both PostgreSQL and SuperSet failed", "error", err)
+			return nil, fmt.Errorf("failed to get data from any source: %w", err)
+		}
+		data = supersetData.Data
+		aa.logger.Info("Got data from SuperSet", "rows", len(data))
+	}
+
+	if len(data) == 0 {
+		return nil, fmt.Errorf("no data available from any source")
 	}
 
 	// Generate insights with LLM
-	insights, err := aa.llmConn.AnalyzeData(ctx, data.Data, query)
+	insights, err := aa.llmConn.AnalyzeData(ctx, data, query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to analyze data: %w", err)
 	}
@@ -61,7 +86,7 @@ func (aa *AnalyticsAgent) processTextQuery(ctx context.Context, task Task) (*Tas
 		Status:  TaskStatusCompleted,
 		Result: map[string]interface{}{
 			"query":     query,
-			"data":      data.Data,
+			"data":      data,
 			"insights":  insights,
 			"timestamp": time.Now(),
 		},

@@ -1,5 +1,5 @@
 # backend/Dockerfile.debug - More secure Alpine-based option
-FROM golang:1.23-alpine3.20 AS builder
+FROM golang:alpine AS builder
 
 # Create non-root user for building
 RUN adduser -D -g '' appuser

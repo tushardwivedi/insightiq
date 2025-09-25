@@ -80,6 +80,7 @@ func (vs *VoiceService) ProcessVoiceQuery(ctx context.Context, audioData []byte,
 	// Wait for result
 	result, err := vs.waitForVoiceResult(ctx, taskID, 120*time.Second)
 	if err != nil {
+		vs.logger.Error("Failed to get voice task result", "task_id", taskID, "error", err)
 		return nil, err
 	}
 
@@ -117,8 +118,8 @@ func (vs *VoiceService) ProcessVoiceQuery(ctx context.Context, audioData []byte,
 			response.AudioReply = audioReply
 		}
 	} else {
-		response.Status = "failed"
-		return response, fmt.Errorf("voice task failed: %s", result.Error)
+		vs.logger.Error("Voice task failed", "task_id", taskID, "status", result.Status, "error", result.Error)
+		return nil, fmt.Errorf("voice task failed with status %s: %s", result.Status, result.Error)
 	}
 
 	vs.logger.Info("Voice query processed successfully",
@@ -172,6 +173,13 @@ func (vs *VoiceService) HealthCheck(ctx context.Context) map[string]interface{} 
 
 // Helper function to wait for voice task results
 func (vs *VoiceService) waitForVoiceResult(ctx context.Context, taskID string, timeout time.Duration) (*agent.TaskResult, error) {
+	// Get the result from agent manager
+	result := vs.agentManager.GetTaskResult(taskID)
+	if result != nil {
+		return result, nil
+	}
+
+	// Wait for the task to complete with polling
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -183,25 +191,10 @@ func (vs *VoiceService) waitForVoiceResult(ctx context.Context, taskID string, t
 		case <-ctx.Done():
 			return nil, fmt.Errorf("voice task timeout: %s", taskID)
 		case <-ticker.C:
-			// Mock implementation - in production, integrate with real agent system
-			return &agent.TaskResult{
-				TaskID:  taskID,
-				AgentID: "voice-1",
-				Status:  agent.TaskStatusCompleted,
-				Result: map[string]interface{}{
-					"transcript": "Show me the sales data for the last quarter",
-					"analytics": map[string]interface{}{
-						"data": []map[string]interface{}{
-							{"quarter": "Q1 2024", "revenue": 150000, "orders": 450},
-							{"quarter": "Q2 2024", "revenue": 180000, "orders": 520},
-							{"quarter": "Q3 2024", "revenue": 165000, "orders": 485},
-						},
-						"insights": "Q3 sales show a slight decline from Q2 peak but remain above Q1 levels. Revenue per order has remained stable around $340.",
-					},
-				},
-				ProcessedAt: time.Now(),
-				Duration:    5 * time.Second,
-			}, nil
+			result := vs.agentManager.GetTaskResult(taskID)
+			if result != nil {
+				return result, nil
+			}
 		}
 	}
 }
