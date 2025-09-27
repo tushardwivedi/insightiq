@@ -59,7 +59,7 @@ func (s *Server) handleTestPostgres(w http.ResponseWriter, r *http.Request) {
 	// Create a new PostgreSQL connector for testing
 	postgresURL := os.Getenv("POSTGRES_URL")
 	if postgresURL == "" {
-		postgresURL = "postgres://superset:superset@postgres:5432/superset?sslmode=disable"
+		postgresURL = "postgres://insightiq_user:insightiq_password@postgres:5432/insightiq?sslmode=disable"
 	}
 	postgresConn, err := connectors.NewPostgresConnector(postgresURL, s.logger)
 	if err != nil {
@@ -112,7 +112,7 @@ func (s *Server) handleDirectAnalytics(w http.ResponseWriter, r *http.Request) {
 	// Create PostgreSQL connector
 	postgresURL := os.Getenv("POSTGRES_URL")
 	if postgresURL == "" {
-		postgresURL = "postgres://superset:superset@postgres:5432/superset?sslmode=disable"
+		postgresURL = "postgres://insightiq_user:insightiq_password@postgres:5432/insightiq?sslmode=disable"
 	}
 	postgresConn, err := connectors.NewPostgresConnector(postgresURL, s.logger)
 	if err != nil {

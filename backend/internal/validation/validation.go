@@ -127,3 +127,45 @@ func ValidateFileUpload(filename string, size int64) error {
 
 	return nil
 }
+
+// ValidateConnectorName validates connector names
+func ValidateConnectorName(name string) error {
+	if name == "" {
+		return ErrInvalidInput
+	}
+
+	// Length check
+	if len(name) > 100 {
+		return ErrInputTooLong
+	}
+
+	// Check for minimum length
+	if len(name) < 1 {
+		return ErrInvalidInput
+	}
+
+	// Allow alphanumeric characters, spaces, hyphens, and underscores
+	re := regexp.MustCompile(`^[a-zA-Z0-9\s\-_]+$`)
+	if !re.MatchString(name) {
+		return ErrInvalidFormat
+	}
+
+	return nil
+}
+
+// ValidateConnectorID validates connector UUIDs
+func ValidateConnectorID(id string) error {
+	if id == "" {
+		return ErrInvalidInput
+	}
+
+	// UUID v4 pattern
+	uuidPattern := `^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`
+	re := regexp.MustCompile(uuidPattern)
+
+	if !re.MatchString(id) {
+		return ErrInvalidFormat
+	}
+
+	return nil
+}

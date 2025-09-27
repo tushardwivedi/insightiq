@@ -13,8 +13,9 @@ import (
 )
 
 type AnalyticsService struct {
-	agentManager *agent.Manager
-	logger       *slog.Logger
+	agentManager         *agent.Manager
+	enhancedAnalytics    *EnhancedAnalyticsService
+	logger               *slog.Logger
 }
 
 type AnalyticsRequest struct {
@@ -35,18 +36,41 @@ type AnalyticsResponse struct {
 	Status      string                   `json:"status"`
 }
 
-func NewAnalyticsService(agentManager *agent.Manager, logger *slog.Logger) *AnalyticsService {
+func NewAnalyticsService(agentManager *agent.Manager, enhancedAnalytics *EnhancedAnalyticsService, logger *slog.Logger) *AnalyticsService {
 	return &AnalyticsService{
-		agentManager: agentManager,
-		logger:       logger.With("service", "analytics"),
+		agentManager:      agentManager,
+		enhancedAnalytics: enhancedAnalytics,
+		logger:            logger.With("service", "analytics"),
 	}
 }
 
 func (as *AnalyticsService) ProcessQuery(ctx context.Context, query string) (*AnalyticsResponse, error) {
+	as.logger.Info("Processing text query with enhanced analytics", "query", query)
+
+	// Use enhanced analytics service if available
+	if as.enhancedAnalytics != nil {
+		req := &EnhancedAnalyticsRequest{Query: query}
+		enhancedResponse, err := as.enhancedAnalytics.ProcessQuery(ctx, req)
+		if err == nil {
+			// Convert enhanced response to standard response format
+			return &AnalyticsResponse{
+				Query:       enhancedResponse.Query,
+				Data:        enhancedResponse.Data,
+				Insights:    enhancedResponse.Analysis,
+				Timestamp:   enhancedResponse.Timestamp,
+				ProcessTime: mustParseDuration(enhancedResponse.ProcessTime),
+				TaskID:      enhancedResponse.TaskID,
+				Status:      enhancedResponse.Status,
+			}, nil
+		}
+		as.logger.Warn("Enhanced analytics failed, falling back to agent system", "error", err)
+	}
+
+	// Fallback to original agent-based processing
 	start := time.Now()
 	taskID := generateTaskID()
 
-	as.logger.Info("Processing text query", "task_id", taskID, "query", query)
+	as.logger.Info("Processing text query via agent system", "task_id", taskID, "query", query)
 
 	// Create task for analytics agent
 	task := agent.Task{
@@ -105,10 +129,31 @@ func (as *AnalyticsService) ProcessQuery(ctx context.Context, query string) (*An
 }
 
 func (as *AnalyticsService) ExecuteCustomSQL(ctx context.Context, sql, question string) (*AnalyticsResponse, error) {
+	as.logger.Info("Processing SQL query with enhanced analytics", "sql_length", len(sql), "question", question)
+
+	// Use enhanced analytics service if available
+	if as.enhancedAnalytics != nil {
+		enhancedResponse, err := as.enhancedAnalytics.ExecuteCustomSQL(ctx, sql, question)
+		if err == nil {
+			// Convert enhanced response to standard response format
+			return &AnalyticsResponse{
+				Query:       enhancedResponse.Query,
+				Data:        enhancedResponse.Data,
+				Insights:    enhancedResponse.Analysis,
+				Timestamp:   enhancedResponse.Timestamp,
+				ProcessTime: mustParseDuration(enhancedResponse.ProcessTime),
+				TaskID:      enhancedResponse.TaskID,
+				Status:      enhancedResponse.Status,
+			}, nil
+		}
+		as.logger.Warn("Enhanced SQL analytics failed, falling back to agent system", "error", err)
+	}
+
+	// Fallback to original agent-based processing
 	start := time.Now()
 	taskID := generateTaskID()
 
-	as.logger.Info("Processing SQL query",
+	as.logger.Info("Processing SQL query via agent system",
 		"task_id", taskID,
 		"sql_length", len(sql),
 		"question", question)
@@ -212,4 +257,13 @@ func generateTaskID() string {
 	bytes := make([]byte, 8)
 	rand.Read(bytes)
 	return "task_" + hex.EncodeToString(bytes)
+}
+
+// Helper function to parse duration string
+func mustParseDuration(s string) time.Duration {
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return 0
+	}
+	return d
 }

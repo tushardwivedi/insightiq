@@ -59,16 +59,7 @@ func (aa *AnalyticsAgent) processTextQuery(ctx context.Context, task Task) (*Tas
 		}
 	}
 
-	// Fallback to SuperSet if PostgreSQL failed
-	if len(data) == 0 && aa.supersetConn != nil {
-		supersetData, err := aa.supersetConn.GetSampleData(ctx)
-		if err != nil {
-			aa.logger.Error("Both PostgreSQL and SuperSet failed", "error", err)
-			return nil, fmt.Errorf("failed to get data from any source: %w", err)
-		}
-		data = supersetData.Data
-		aa.logger.Info("Got data from SuperSet", "rows", len(data))
-	}
+	// PostgreSQL-only approach - use connector system for other sources
 
 	if len(data) == 0 {
 		return nil, fmt.Errorf("no data available from any source")
@@ -106,7 +97,10 @@ func (aa *AnalyticsAgent) processSQLQuery(ctx context.Context, task Task) (*Task
 
 	aa.logger.Info("Processing SQL query", "sql", sql)
 
-	// Execute SQL
+	// Execute SQL via PostgreSQL (use connector system for other databases)
+	if aa.supersetConn == nil {
+		return nil, fmt.Errorf("SQL execution requires active database connectors - use connector system")
+	}
 	data, err := aa.supersetConn.ExecuteSQL(ctx, sql)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute SQL: %w", err)

@@ -149,3 +149,17 @@ func (sc *SuperSetConnector) HealthCheck(ctx context.Context) error {
 
 	return nil
 }
+
+func (sc *SuperSetConnector) TestConnection(ctx context.Context) error {
+	// First try health check
+	if err := sc.HealthCheck(ctx); err != nil {
+		return fmt.Errorf("health check failed: %w", err)
+	}
+
+	// Then try authentication
+	if err := sc.Authenticate(ctx); err != nil {
+		return fmt.Errorf("authentication failed: %w", err)
+	}
+
+	return nil
+}

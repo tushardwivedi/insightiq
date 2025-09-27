@@ -110,3 +110,9 @@ func (pc *PostgresConnector) GetMonthlyActiveUsers(ctx context.Context) (*QueryR
 	`
 	return pc.ExecuteQuery(ctx, query)
 }
+
+func (pc *PostgresConnector) TestConnection(ctx context.Context) (*QueryResult, error) {
+	// Simple test query to verify connection
+	query := "SELECT 1 as test_connection"
+	return pc.ExecuteQuery(ctx, query)
+}

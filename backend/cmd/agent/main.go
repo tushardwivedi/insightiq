@@ -10,9 +10,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jmoiron/sqlx"
+	_ "github.com/lib/pq"
+
 	"insightiq/backend/internal/agent"
 	"insightiq/backend/internal/connectors"
 	httpserver "insightiq/backend/internal/http" // Fixed: Use alias to avoid conflict
+	"insightiq/backend/internal/repository"
 	"insightiq/backend/internal/services"
 )
 
@@ -45,20 +49,31 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Initialize connectors
-	supersetConn := connectors.NewSuperSetConnector(
-		getEnvOrDefault("SUPERSET_URL", "http://superset:8088"),
-		getEnvOrDefault("SUPERSET_USERNAME", "admin"),
-		getEnvOrDefault("SUPERSET_PASSWORD", "admin"), logger)
-
-	// Initialize PostgreSQL connector
-	postgresConn, err := connectors.NewPostgresConnector(
-		getEnvOrDefault("POSTGRES_URL", "postgres://superset:superset@postgres:5432/superset?sslmode=disable"),
-		logger)
+	// Initialize PostgreSQL connector for sample data
+	postgresURL := getEnvOrDefault("POSTGRES_URL", "postgres://insightiq_user:insightiq_password@postgres:5432/insightiq?sslmode=disable")
+	postgresConn, err := connectors.NewPostgresConnector(postgresURL, logger)
 	if err != nil {
 		logger.Error("Failed to initialize PostgreSQL connector", "error", err)
 		os.Exit(1)
 	}
+
+	// Initialize database connection for connector management
+	db, err := sqlx.Connect("postgres", postgresURL)
+	if err != nil {
+		logger.Error("Failed to connect to database for connector management", "error", err)
+		os.Exit(1)
+	}
+
+	// Initialize connector repository and service
+	connectorRepo := repository.NewConnectorRepository(db)
+
+	// Create connector tables if they don't exist
+	if err := connectorRepo.CreateTables(ctx); err != nil {
+		logger.Error("Failed to create connector tables", "error", err)
+		os.Exit(1)
+	}
+
+	connectorService := services.NewConnectorService(connectorRepo, logger)
 
 	ollamaConn := connectors.NewOllamaConnector(
 		getEnvOrDefault("OLLAMA_URL", "http://ollama:11434"), logger)
@@ -69,9 +84,12 @@ func main() {
 	// Initialize agent manager
 	agentManager := agent.NewManager(logger)
 
-	// Create and register agents
-	analyticsAgent := agent.NewAnalyticsAgent("analytics-1", supersetConn, postgresConn, ollamaConn, logger)
-	voiceAgent := agent.NewVoiceAgent("voice-1", whisperConn, analyticsAgent, logger) // Fixed: This should work now
+	// Create enhanced analytics service (connector-only architecture)
+	enhancedAnalyticsService := services.NewEnhancedAnalyticsService(connectorService, ollamaConn, postgresConn, nil, logger)
+
+	// Create and register agents (keep for backward compatibility)
+	analyticsAgent := agent.NewAnalyticsAgent("analytics-1", nil, postgresConn, ollamaConn, logger)
+	voiceAgent := agent.NewVoiceAgent("voice-1", whisperConn, analyticsAgent, logger)
 
 	if err := agentManager.RegisterAgent(analyticsAgent); err != nil {
 		logger.Error("Failed to register analytics agent", "error", err)
@@ -91,12 +109,15 @@ func main() {
 		}
 	}()
 
-	// Initialize services
-	analyticsService := services.NewAnalyticsService(agentManager, logger)
+	// Initialize services with enhanced analytics
+	analyticsService := services.NewAnalyticsService(agentManager, enhancedAnalyticsService, logger)
 	voiceService := services.NewVoiceService(agentManager, logger)
 
+	// Create planner service
+	plannerService := services.NewPlannerService(ollamaConn, connectorService, logger)
+
 	// Create HTTP server
-	httpServer := httpserver.NewServer(analyticsService, voiceService, logger) // Fixed: Use alias
+	httpServer := httpserver.NewServer(analyticsService, voiceService, connectorService, plannerService, logger) // Fixed: Use alias
 
 	server := &http.Server{
 		Addr:              getEnvOrDefault("PORT", ":8080"),
@@ -138,9 +159,13 @@ func main() {
 		logger.Error("Server shutdown error", "error", err)
 	}
 
-	// Close database connection
+	// Close database connections
 	if err := postgresConn.Close(); err != nil {
 		logger.Error("Error closing PostgreSQL connection", "error", err)
+	}
+
+	if err := db.Close(); err != nil {
+		logger.Error("Error closing database connection", "error", err)
 	}
 
 	logger.Info("Server stopped gracefully")
