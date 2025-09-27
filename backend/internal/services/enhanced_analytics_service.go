@@ -99,15 +99,20 @@ func (eas *EnhancedAnalyticsService) ProcessQuery(ctx context.Context, req *Enha
 
 	// 2. Execute task graph based on parsed intent
 	dataSources := eas.selectDataSourcesFromIntent(ctx, plannerResponse.Intent, req.ConnectorIDs)
+	eas.logger.Info("Data sources selected for query", "count", len(dataSources), "query", req.Query)
+	for i, ds := range dataSources {
+		eas.logger.Info("Selected data source", "index", i, "name", ds.Name, "type", ds.Type, "status", ds.Status)
+	}
 
 	// 2. Retrieve data from multiple sources
 	allData := make(map[string]interface{})
 	var combinedData []map[string]interface{}
 
 	for _, source := range dataSources {
+		eas.logger.Info("Attempting to fetch data from source", "source", source.Name, "type", source.Type)
 		data, err := eas.fetchDataFromSource(ctx, source, req.Query)
 		if err != nil {
-			eas.logger.Warn("Failed to fetch from source", "source", source.Name, "error", err)
+			eas.logger.Error("Failed to fetch from source", "source", source.Name, "type", source.Type, "error", err)
 			continue
 		}
 
@@ -115,6 +120,8 @@ func (eas *EnhancedAnalyticsService) ProcessQuery(ctx context.Context, req *Enha
 			allData[source.Name] = data
 			combinedData = append(combinedData, data...)
 			eas.logger.Info("Retrieved data from source", "source", source.Name, "rows", len(data))
+		} else {
+			eas.logger.Warn("No data returned from source", "source", source.Name, "type", source.Type)
 		}
 	}
 
@@ -298,20 +305,38 @@ func (eas *EnhancedAnalyticsService) fetchFromSuperset(ctx context.Context, conn
 	url, _ := config["url"].(string)
 	username, _ := config["username"].(string)
 	password, _ := config["password"].(string)
+	bearerToken, _ := config["bearer_token"].(string)
 
-	supersetConn := connectors.NewSuperSetConnector(url, username, password, eas.logger)
+	var supersetConn *connectors.SuperSetConnector
+
+	// Use bearer token if provided, otherwise use username/password
+	if bearerToken != "" {
+		supersetConn = connectors.NewSuperSetConnectorWithToken(url, bearerToken, eas.logger)
+	} else {
+		supersetConn = connectors.NewSuperSetConnector(url, username, password, eas.logger)
+	}
 
 	// Test connection first
 	if err := supersetConn.TestConnection(ctx); err != nil {
 		return nil, fmt.Errorf("superset connection failed: %w", err)
 	}
 
-	// Get sample data (in a real implementation, this would be query-specific)
-	result, err := supersetConn.GetSampleData(ctx)
+	eas.logger.Info("Fetching data from Superset based on user query", "query", query)
+
+	// Use query-specific data retrieval instead of hardcoded sample data
+	result, err := supersetConn.QueryDataset(ctx, query)
 	if err != nil {
-		return nil, err
+		eas.logger.Error("Query-specific data failed", "error", err, "query", query)
+		// Fallback to sample data if query-specific fails
+		result, err = supersetConn.GetSampleData(ctx)
+		if err != nil {
+			eas.logger.Error("Sample data also failed", "error", err)
+			return nil, fmt.Errorf("failed to get data from Superset: %w", err)
+		}
+		eas.logger.Info("Using sample data as fallback", "rows", len(result.Data))
 	}
 
+	eas.logger.Info("Successfully retrieved data from Superset", "rows", len(result.Data))
 	return result.Data, nil
 }
 

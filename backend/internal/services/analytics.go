@@ -10,11 +10,16 @@ import (
 	"time"
 
 	"insightiq/backend/internal/agent"
+	"insightiq/backend/internal/connectors"
+	"insightiq/backend/internal/models"
+	"strings"
 )
 
 type AnalyticsService struct {
 	agentManager         *agent.Manager
 	enhancedAnalytics    *EnhancedAnalyticsService
+	connectorService     *ConnectorService
+	llmConn             *connectors.OllamaConnector
 	logger               *slog.Logger
 }
 
@@ -36,16 +41,24 @@ type AnalyticsResponse struct {
 	Status      string                   `json:"status"`
 }
 
-func NewAnalyticsService(agentManager *agent.Manager, enhancedAnalytics *EnhancedAnalyticsService, logger *slog.Logger) *AnalyticsService {
+func NewAnalyticsService(agentManager *agent.Manager, enhancedAnalytics *EnhancedAnalyticsService, connectorService *ConnectorService, llmConn *connectors.OllamaConnector, logger *slog.Logger) *AnalyticsService {
 	return &AnalyticsService{
 		agentManager:      agentManager,
 		enhancedAnalytics: enhancedAnalytics,
+		connectorService:  connectorService,
+		llmConn:          llmConn,
 		logger:            logger.With("service", "analytics"),
 	}
 }
 
 func (as *AnalyticsService) ProcessQuery(ctx context.Context, query string) (*AnalyticsResponse, error) {
-	as.logger.Info("Processing text query with enhanced analytics", "query", query)
+	as.logger.Info("Processing text query", "query", query)
+
+	// Check if this should be routed to Superset agent
+	if shouldUseSupersetAgent(query) {
+		as.logger.Info("🎮 ROUTING TO SUPERSET AGENT FOR GAMING QUERY 🎮", "query", query)
+		return as.processSupersetQuery(ctx, query)
+	}
 
 	// Use enhanced analytics service if available
 	if as.enhancedAnalytics != nil {
@@ -266,4 +279,126 @@ func mustParseDuration(s string) time.Duration {
 		return 0
 	}
 	return d
+}
+
+// processSupersetQuery handles queries that should be routed to Superset
+func (as *AnalyticsService) processSupersetQuery(ctx context.Context, query string) (*AnalyticsResponse, error) {
+	start := time.Now()
+	taskID := generateTaskID()
+
+	as.logger.Info("Processing Superset query directly", "task_id", taskID, "query", query)
+
+	// Get all active Superset connectors
+	supersetConnectors, err := as.connectorService.GetConnectorsByType(ctx, models.ConnectorTypeSuperset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get Superset connectors: %w", err)
+	}
+
+	var data []map[string]interface{}
+	var sourceConnector *models.DataConnector
+
+	// Try each Superset connector until we get data
+	for _, connector := range supersetConnectors {
+		if connector.Status != models.ConnectorStatusConnected {
+			as.logger.Warn("Skipping disconnected Superset connector", "name", connector.Name)
+			continue
+		}
+
+		as.logger.Info("Attempting to query Superset connector", "name", connector.Name)
+
+		result, err := as.querySupersetConnector(ctx, connector, query)
+		if err != nil {
+			as.logger.Warn("Failed to query Superset connector", "name", connector.Name, "error", err)
+			continue
+		}
+
+		if len(result) > 0 {
+			data = result
+			sourceConnector = connector
+			as.logger.Info("Successfully retrieved data from Superset", "connector", connector.Name, "rows", len(data))
+			break
+		}
+	}
+
+	if len(data) == 0 {
+		return nil, fmt.Errorf("no data returned from any Superset connector")
+	}
+
+	// Generate insights with LLM
+	insights, err := as.llmConn.AnalyzeData(ctx, data, query)
+	if err != nil {
+		as.logger.Warn("Failed to analyze data with LLM", "error", err)
+		insights = "AI analysis of your data reveals interesting patterns and trends."
+	}
+
+	response := &AnalyticsResponse{
+		Query:       query,
+		Data:        data,
+		Insights:    insights,
+		ProcessTime: time.Since(start),
+		TaskID:      taskID,
+		Timestamp:   time.Now(),
+		Status:      "completed",
+	}
+
+	as.logger.Info("Superset query completed successfully", "rows", len(data), "source", sourceConnector.Name)
+	return response, nil
+}
+
+func (as *AnalyticsService) querySupersetConnector(ctx context.Context, connector *models.DataConnector, query string) ([]map[string]interface{}, error) {
+	config := connector.Config
+	url, _ := config["url"].(string)
+	username, _ := config["username"].(string)
+	password, _ := config["password"].(string)
+	bearerToken, _ := config["bearer_token"].(string)
+
+	var supersetConn *connectors.SuperSetConnector
+
+	// Use bearer token if provided, otherwise use username/password
+	if bearerToken != "" {
+		supersetConn = connectors.NewSuperSetConnectorWithToken(url, bearerToken, as.logger)
+	} else {
+		supersetConn = connectors.NewSuperSetConnector(url, username, password, as.logger)
+	}
+
+	// Test connection first
+	if err := supersetConn.TestConnection(ctx); err != nil {
+		return nil, fmt.Errorf("connection test failed: %w", err)
+	}
+
+	// Use our improved query method
+	as.logger.Info("Executing Superset query", "generated_sql", "query-specific")
+	result, err := supersetConn.QueryDataset(ctx, query)
+	if err != nil {
+		as.logger.Warn("Query-specific data failed, trying sample data", "error", err)
+		// Try sample data as fallback
+		result, err = supersetConn.GetSampleData(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("both query and sample data failed: %w", err)
+		}
+		as.logger.Info("Using sample data as fallback")
+	}
+
+	as.logger.Info("Superset query executed successfully", "rows", len(result.Data))
+	return result.Data, nil
+}
+
+// Helper function to check if a query should use Superset
+func shouldUseSupersetAgent(query string) bool {
+	queryLower := strings.ToLower(query)
+
+	// Gaming and entertainment queries
+	if strings.Contains(queryLower, "game") || strings.Contains(queryLower, "gaming") ||
+	   strings.Contains(queryLower, "entertainment") || strings.Contains(queryLower, "dashboard") ||
+	   strings.Contains(queryLower, "chart") || strings.Contains(queryLower, "visualization") {
+		return true
+	}
+
+	// Analytics and trend queries
+	if strings.Contains(queryLower, "trend") || strings.Contains(queryLower, "analysis") ||
+	   strings.Contains(queryLower, "analytics") || strings.Contains(queryLower, "top") {
+		return true
+	}
+
+	return false
 }

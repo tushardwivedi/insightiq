@@ -64,8 +64,8 @@ export interface ConnectorConfig {
 }
 
 export interface SupersetConnectorConfig extends ConnectorConfig {
-  username: string;
-  password: string;
+  username?: string;
+  password?: string;
   bearer_token?: string;
 }
 

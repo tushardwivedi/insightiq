@@ -110,7 +110,7 @@ func main() {
 	}()
 
 	// Initialize services with enhanced analytics
-	analyticsService := services.NewAnalyticsService(agentManager, enhancedAnalyticsService, logger)
+	analyticsService := services.NewAnalyticsService(agentManager, enhancedAnalyticsService, connectorService, ollamaConn, logger)
 	voiceService := services.NewVoiceService(agentManager, logger)
 
 	// Create planner service

@@ -15,6 +15,9 @@ RUN apk update && apk upgrade && \
 
 WORKDIR /app
 
+# Ensure the app directory is owned by appuser
+RUN chown -R appuser:appuser /app
+
 # Copy and download dependencies as non-root
 USER appuser
 COPY --chown=appuser:appuser go.mod go.sum ./

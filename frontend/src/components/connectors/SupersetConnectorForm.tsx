@@ -94,7 +94,7 @@ export default function SupersetConnectorForm({ onCancel, onSuccess, connector }
   }
 
   const isFormValid = () => {
-    return (
+    const isValid = (
       formData.name.trim() &&
       formData.url.trim() &&
       (authMethod === 'credentials'
@@ -102,6 +102,16 @@ export default function SupersetConnectorForm({ onCancel, onSuccess, connector }
         : formData.bearer_token.trim()
       )
     )
+    console.log('Form validation:', {
+      name: formData.name.trim(),
+      url: formData.url.trim(),
+      authMethod,
+      username: formData.username.trim(),
+      password: formData.password.trim(),
+      bearer_token: formData.bearer_token.trim(),
+      isValid
+    })
+    return isValid
   }
 
   return (
@@ -127,7 +137,7 @@ export default function SupersetConnectorForm({ onCancel, onSuccess, connector }
             value={formData.name}
             onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
             placeholder="My Superset Instance"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder:text-gray-400"
             required
           />
         </div>
@@ -143,7 +153,7 @@ export default function SupersetConnectorForm({ onCancel, onSuccess, connector }
             value={formData.url}
             onChange={(e) => setFormData(prev => ({ ...prev, url: e.target.value }))}
             placeholder="https://superset.example.com"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder:text-gray-400"
             required
           />
         </div>
@@ -162,7 +172,7 @@ export default function SupersetConnectorForm({ onCancel, onSuccess, connector }
                 onChange={(e) => setAuthMethod(e.target.value as 'credentials')}
                 className="mr-2"
               />
-              <span className="text-sm">Username & Password</span>
+              <span className="text-sm text-gray-700">Username & Password</span>
             </label>
             <label className="flex items-center">
               <input
@@ -172,7 +182,7 @@ export default function SupersetConnectorForm({ onCancel, onSuccess, connector }
                 onChange={(e) => setAuthMethod(e.target.value as 'token')}
                 className="mr-2"
               />
-              <span className="text-sm">Bearer Token</span>
+              <span className="text-sm text-gray-700">Bearer Token</span>
             </label>
           </div>
         </div>
@@ -190,7 +200,7 @@ export default function SupersetConnectorForm({ onCancel, onSuccess, connector }
                 value={formData.username}
                 onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value }))}
                 placeholder="admin"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder:text-gray-400"
                 required={authMethod === 'credentials'}
               />
             </div>
@@ -205,7 +215,7 @@ export default function SupersetConnectorForm({ onCancel, onSuccess, connector }
                 value={formData.password}
                 onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
                 placeholder="••••••••"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder:text-gray-400"
                 required={authMethod === 'credentials'}
               />
             </div>
@@ -221,7 +231,7 @@ export default function SupersetConnectorForm({ onCancel, onSuccess, connector }
               onChange={(e) => setFormData(prev => ({ ...prev, bearer_token: e.target.value }))}
               placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..."
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-gray-900 placeholder:text-gray-400"
               required={authMethod === 'token'}
             />
             <p className="text-xs text-gray-500 mt-1">

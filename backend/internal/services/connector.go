@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"insightiq/backend/internal/connectors"
@@ -178,6 +179,11 @@ func (s *ConnectorService) validateSupersetConfig(config models.ConnectorConfig)
 		return fmt.Errorf("url is required for Superset connector")
 	}
 
+	// Basic URL validation
+	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
+		return fmt.Errorf("url must start with http:// or https://")
+	}
+
 	// Check if either username/password or bearer_token is provided
 	username, hasUsername := config["username"].(string)
 	password, hasPassword := config["password"].(string)
@@ -223,14 +229,23 @@ func (s *ConnectorService) testSupersetConnection(ctx context.Context, config mo
 	url, _ := config["url"].(string)
 	username, _ := config["username"].(string)
 	password, _ := config["password"].(string)
+	bearerToken, _ := config["bearer_token"].(string)
 
-	supersetConn := connectors.NewSuperSetConnector(url, username, password, s.logger)
+	var supersetConn *connectors.SuperSetConnector
+
+	// Use bearer token if provided, otherwise use username/password
+	if bearerToken != "" {
+		supersetConn = connectors.NewSuperSetConnectorWithToken(url, bearerToken, s.logger)
+	} else {
+		supersetConn = connectors.NewSuperSetConnector(url, username, password, s.logger)
+	}
 
 	// Test connection with a simple health check or login attempt
 	err := supersetConn.TestConnection(ctx)
 	responseTime := time.Since(start).Milliseconds()
 
 	if err != nil {
+		s.logger.Error("Superset connection test failed", "error", err, "url", url)
 		return &models.ConnectorTestResult{
 			Success:      false,
 			Message:      "Failed to connect to Superset",
