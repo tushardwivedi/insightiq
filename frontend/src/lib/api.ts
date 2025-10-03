@@ -17,18 +17,20 @@ class ApiClient {
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${API_BASE}${endpoint}`;
-    
+
     const response = await fetch(url, {
       headers: {
         'Content-Type': 'application/json',
         ...options.headers,
       },
+      credentials: 'same-origin',
       ...options,
     });
 
     if (!response.ok) {
       const error = await response.text();
-      throw new Error(`API Error: ${response.status} - ${error}`);
+      const sanitizedError = error.replace(/<[^>]*>/g, '');
+      throw new Error(`API Error: ${response.status} - ${sanitizedError}`);
     }
 
     return response.json();
@@ -82,20 +84,23 @@ class ApiClient {
   }
 
   async updateConnector(id: string, connector: Partial<Omit<DataConnector, 'id' | 'created_at' | 'updated_at'>>): Promise<DataConnector> {
-    return this.request<DataConnector>(`/connectors/${id}`, {
+    const sanitizedId = id.replace(/[^a-zA-Z0-9-_]/g, '');
+    return this.request<DataConnector>(`/connectors/${sanitizedId}`, {
       method: 'PUT',
       body: JSON.stringify(connector),
     });
   }
 
   async deleteConnector(id: string): Promise<void> {
-    return this.request<void>(`/connectors/${id}`, {
+    const sanitizedId = id.replace(/[^a-zA-Z0-9-_]/g, '');
+    return this.request<void>(`/connectors/${sanitizedId}`, {
       method: 'DELETE',
     });
   }
 
   async testConnector(id: string): Promise<ConnectorTestResult> {
-    return this.request<ConnectorTestResult>(`/connectors/${id}/test`, {
+    const sanitizedId = id.replace(/[^a-zA-Z0-9-_]/g, '');
+    return this.request<ConnectorTestResult>(`/connectors/${sanitizedId}/test`, {
       method: 'POST',
     });
   }
@@ -108,8 +113,9 @@ class ApiClient {
   }
 
   async getConnectorData(id: string, query?: string): Promise<AnalyticsResponse> {
+    const sanitizedId = id.replace(/[^a-zA-Z0-9-_]/g, '');
     const params = query ? `?query=${encodeURIComponent(query)}` : '';
-    return this.request<AnalyticsResponse>(`/connectors/${id}/data${params}`);
+    return this.request<AnalyticsResponse>(`/connectors/${sanitizedId}/data${params}`);
   }
 }
 

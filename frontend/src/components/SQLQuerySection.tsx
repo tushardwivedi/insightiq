@@ -19,6 +19,15 @@ export default function SQLQuerySection({ onResult, onLoading }: Props) {
     e.preventDefault()
     if (!sql.trim() || !question.trim() || isSubmitting) return
 
+    const sqlLower = sql.toLowerCase();
+    const dangerousPatterns = ['drop', 'delete', 'truncate', 'alter', 'create', 'insert', 'update'];
+    const hasDangerousKeywords = dangerousPatterns.some(pattern => sqlLower.includes(pattern));
+
+    if (hasDangerousKeywords) {
+      alert('For security reasons, only SELECT queries are allowed');
+      return;
+    }
+
     setIsSubmitting(true)
     onLoading(true)
 
@@ -27,6 +36,16 @@ export default function SQLQuerySection({ onResult, onLoading }: Props) {
       onResult(result)
     } catch (error) {
       console.error('SQL query failed:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Failed to execute SQL query'
+      onResult({
+        query: sql,
+        data: [],
+        insights: `Error: ${errorMessage}. Please check your SQL syntax and try again.`,
+        timestamp: new Date().toISOString(),
+        process_time: '0ms',
+        task_id: 'error',
+        status: 'failed'
+      })
     } finally {
       setIsSubmitting(false)
       onLoading(false)

@@ -103,7 +103,18 @@ export default function VoiceQuerySection({ onResult, onLoading }: Props) {
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      processAudio(file)
+      if (file.size > 10 * 1024 * 1024) {
+        alert('File size must be less than 10MB');
+        return;
+      }
+
+      const allowedTypes = ['audio/wav', 'audio/mp3', 'audio/mpeg', 'audio/m4a', 'audio/webm', 'audio/ogg'];
+      if (!allowedTypes.includes(file.type)) {
+        alert('Please upload a valid audio file (WAV, MP3, M4A, WebM, OGG)');
+        return;
+      }
+
+      processAudio(file);
     }
   }
 
@@ -185,7 +196,7 @@ export default function VoiceQuerySection({ onResult, onLoading }: Props) {
         <input
           ref={fileInputRef}
           type="file"
-          accept="audio/*"
+          accept="audio/wav,audio/mp3,audio/mpeg,audio/m4a,audio/webm,audio/ogg"
           onChange={handleFileUpload}
           className="hidden"
         />
