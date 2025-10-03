@@ -137,7 +137,8 @@ export default function SupersetConnectorForm({ onCancel, onSuccess, connector }
             value={formData.name}
             onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
             placeholder="My Superset Instance"
-            className="w-full px-3 py-2 border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white !text-black placeholder:text-gray-600 font-medium"
+            className="w-full px-3 py-2 border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder:text-gray-600 font-medium dark:text-gray-900 dark:bg-white dark:placeholder-gray-500"
+            style={{ color: '#111827', backgroundColor: '#ffffff' }}
             required
           />
         </div>
@@ -153,7 +154,8 @@ export default function SupersetConnectorForm({ onCancel, onSuccess, connector }
             value={formData.url}
             onChange={(e) => setFormData(prev => ({ ...prev, url: e.target.value }))}
             placeholder="https://superset.example.com"
-            className="w-full px-3 py-2 border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white !text-black placeholder:text-gray-600 font-medium"
+            className="w-full px-3 py-2 border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder:text-gray-600 font-medium dark:text-gray-900 dark:bg-white dark:placeholder-gray-500"
+            style={{ color: '#111827', backgroundColor: '#ffffff' }}
             required
           />
         </div>
@@ -200,7 +202,8 @@ export default function SupersetConnectorForm({ onCancel, onSuccess, connector }
                 value={formData.username}
                 onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value }))}
                 placeholder="admin"
-                className="w-full px-3 py-2 border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white !text-black placeholder:text-gray-600 font-medium"
+                className="w-full px-3 py-2 border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder:text-gray-600 font-medium dark:text-gray-900 dark:bg-white dark:placeholder-gray-500"
+                style={{ color: '#111827', backgroundColor: '#ffffff' }}
                 required={authMethod === 'credentials'}
               />
             </div>
@@ -215,7 +218,8 @@ export default function SupersetConnectorForm({ onCancel, onSuccess, connector }
                 value={formData.password}
                 onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
                 placeholder="••••••••"
-                className="w-full px-3 py-2 border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white !text-black placeholder:text-gray-600 font-medium"
+                className="w-full px-3 py-2 border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder:text-gray-600 font-medium dark:text-gray-900 dark:bg-white dark:placeholder-gray-500"
+                style={{ color: '#111827', backgroundColor: '#ffffff' }}
                 required={authMethod === 'credentials'}
               />
             </div>
@@ -231,7 +235,8 @@ export default function SupersetConnectorForm({ onCancel, onSuccess, connector }
               onChange={(e) => setFormData(prev => ({ ...prev, bearer_token: e.target.value }))}
               placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..."
               rows={3}
-              className="w-full px-3 py-2 border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none bg-white !text-black placeholder:text-gray-600 font-medium"
+              className="w-full px-3 py-2 border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none bg-white text-gray-900 placeholder:text-gray-600 font-medium dark:text-gray-900 dark:bg-white dark:placeholder-gray-500"
+              style={{ color: '#111827', backgroundColor: '#ffffff' }}
               required={authMethod === 'token'}
             />
             <p className="text-xs font-medium text-gray-700 mt-1">

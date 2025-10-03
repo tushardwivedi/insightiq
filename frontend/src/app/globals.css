@@ -33,3 +33,27 @@
     text-wrap: balance;
   }
 }
+
+@layer base {
+  /* Ensure all input elements have visible black text */
+  input, textarea, select {
+    color: #111827 !important;
+    background-color: #ffffff !important;
+  }
+
+  input::placeholder, textarea::placeholder {
+    color: #6b7280 !important;
+  }
+
+  /* Dark mode overrides for inputs */
+  @media (prefers-color-scheme: dark) {
+    input, textarea, select {
+      color: #111827 !important;
+      background-color: #ffffff !important;
+    }
+
+    input::placeholder, textarea::placeholder {
+      color: #6b7280 !important;
+    }
+  }
+}
