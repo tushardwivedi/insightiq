@@ -49,15 +49,8 @@ func (aa *AnalyticsAgent) processTextQuery(ctx context.Context, task Task) (*Tas
 	var data []map[string]interface{}
 	var err error
 
-	if aa.postgresConn != nil {
-		result, pgErr := aa.postgresConn.GetBikeSalesData(ctx)
-		if pgErr != nil {
-			aa.logger.Warn("PostgreSQL query failed, trying SuperSet", "error", pgErr)
-		} else {
-			data = result.Data
-			aa.logger.Info("Got data from PostgreSQL", "rows", len(data))
-		}
-	}
+	// PostgreSQL direct connections disabled - all data should come from configured connectors
+	aa.logger.Info("PostgreSQL direct connections disabled - using connector-based data sources only")
 
 	// PostgreSQL-only approach - use connector system for other sources
 

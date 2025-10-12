@@ -2,16 +2,12 @@
 package http
 
 import (
-	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
-	"insightiq/backend/internal/connectors"
 	"insightiq/backend/internal/validation"
 )
 
@@ -53,33 +49,11 @@ func (s *Server) handleTestPostgres(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Simple test that bypasses agent system and tests PostgreSQL directly
-	ctx := r.Context()
-
-	// Create a new PostgreSQL connector for testing
-	postgresURL := os.Getenv("POSTGRES_URL")
-	if postgresURL == "" {
-		postgresURL = "postgres://insightiq_user:insightiq_password@postgres:5432/insightiq?sslmode=disable"
-	}
-	postgresConn, err := connectors.NewPostgresConnector(postgresURL, s.logger)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to connect to PostgreSQL: %v", err), http.StatusInternalServerError)
-		return
-	}
-	defer postgresConn.Close()
-
-	// Test the query
-	result, err := postgresConn.GetBikeSalesData(ctx)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("PostgreSQL query failed: %v", err), http.StatusInternalServerError)
-		return
-	}
-
+	// PostgreSQL direct connections disabled - all data should come from configured connectors
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"status": "success",
-		"rows":   len(result.Data),
-		"sample": result.Data[:min(3, len(result.Data))],
+		"status": "disabled",
+		"message": "PostgreSQL direct connections are disabled. Use /api/connectors to configure external data sources.",
 	})
 }
 
@@ -107,57 +81,10 @@ func (s *Server) handleDirectAnalytics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx := r.Context()
+	// PostgreSQL direct connections disabled - use connector-based data sources only
+	http.Error(w, "Direct PostgreSQL connections are disabled. Use configured connectors via /api/query endpoint.", http.StatusServiceUnavailable)
+	return
 
-	// Create PostgreSQL connector
-	postgresURL := os.Getenv("POSTGRES_URL")
-	if postgresURL == "" {
-		postgresURL = "postgres://insightiq_user:insightiq_password@postgres:5432/insightiq?sslmode=disable"
-	}
-	postgresConn, err := connectors.NewPostgresConnector(postgresURL, s.logger)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Database connection failed: %v", err), http.StatusInternalServerError)
-		return
-	}
-	defer postgresConn.Close()
-
-	// Get real data from PostgreSQL
-	result, err := postgresConn.GetBikeSalesData(ctx)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Database query failed: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	// Create Ollama connector for LLM analysis
-	ollamaURL := os.Getenv("OLLAMA_URL")
-	if ollamaURL == "" {
-		ollamaURL = "http://ollama:11434"
-	}
-	ollamaConn := connectors.NewOllamaConnector(ollamaURL, s.logger)
-
-	// Get LLM analysis of the real data with timeout
-	llmCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
-	defer cancel()
-
-	insights, err := ollamaConn.AnalyzeData(llmCtx, result.Data, req.Query)
-	if err != nil {
-		s.logger.Error("LLM analysis failed", "error", err)
-		insights = "LLM analysis temporarily unavailable. Please try again later."
-	}
-
-	// Return response in expected format
-	response := map[string]interface{}{
-		"query":       req.Query,
-		"data":        result.Data,
-		"insights":    insights,
-		"timestamp":   time.Now(),
-		"process_time": "500ms",
-		"task_id":     "direct_query",
-		"status":      "completed",
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
 }
 
 func min(a, b int) int {

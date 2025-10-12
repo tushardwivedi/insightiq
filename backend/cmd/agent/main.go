@@ -85,10 +85,10 @@ func main() {
 	agentManager := agent.NewManager(logger)
 
 	// Create enhanced analytics service (connector-only architecture)
-	enhancedAnalyticsService := services.NewEnhancedAnalyticsService(connectorService, ollamaConn, postgresConn, nil, logger)
+	enhancedAnalyticsService := services.NewEnhancedAnalyticsService(connectorService, ollamaConn, nil, nil, logger)
 
-	// Create and register agents (keep for backward compatibility)
-	analyticsAgent := agent.NewAnalyticsAgent("analytics-1", nil, postgresConn, ollamaConn, logger)
+	// Create and register agents (PostgreSQL connections disabled - using connector-only architecture)
+	analyticsAgent := agent.NewAnalyticsAgent("analytics-1", nil, nil, ollamaConn, logger)
 	voiceAgent := agent.NewVoiceAgent("voice-1", whisperConn, analyticsAgent, logger)
 
 	if err := agentManager.RegisterAgent(analyticsAgent); err != nil {

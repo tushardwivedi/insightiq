@@ -116,10 +116,212 @@ export default function InteractiveCharts({ data, insights }: Props) {
     const hasCategory = keys.some(k => k.toLowerCase().includes('category'))
     const hasMonth = keys.some(k => k.toLowerCase().includes('month'))
     const hasOrders = keys.some(k => k.toLowerCase().includes('order'))
+    const hasYear = keys.some(k => k.toLowerCase().includes('year'))
+    const hasName = keys.some(k => k.toLowerCase().includes('name'))
+    const hasBirths = keys.some(k => k.toLowerCase().includes('births'))
+    const hasGender = keys.some(k => k.toLowerCase().includes('gender'))
+    const hasGame = keys.some(k => k.toLowerCase().includes('game'))
+    const hasSales = keys.some(k => k.toLowerCase().includes('sales'))
+    const hasPlatform = keys.some(k => k.toLowerCase().includes('platform'))
+    const hasChannel = keys.some(k => k.toLowerCase().includes('channel'))
+    const hasMessages = keys.some(k => k.toLowerCase().includes('messages'))
+    const hasUsers = keys.some(k => k.toLowerCase().includes('users'))
+    const hasState = keys.some(k => k.toLowerCase().includes('state'))
+    const hasVaccinated = keys.some(k => k.toLowerCase().includes('vaccinated'))
+    const hasPercentage = keys.some(k => k.toLowerCase().includes('percentage'))
 
     console.log('Data flags:', { hasQuarter, hasRevenue, hasCategory, hasMonth, hasOrders })
 
     let charts: any = {}
+
+    // USA Birth Names data visualization
+    if (hasName && hasBirths && hasGender) {
+      // Gender breakdown
+      const genderData = data.reduce((acc: any, item) => {
+        const gender = item.gender || item.Gender
+        const births = item.births || item.Births
+        if (!acc[gender]) acc[gender] = 0
+        acc[gender] += Number(births) || 0
+        return acc
+      }, {})
+
+      charts.genderBreakdown = {
+        labels: Object.keys(genderData),
+        datasets: [
+          {
+            label: 'Births by Gender',
+            data: Object.values(genderData),
+            backgroundColor: ['rgba(99, 102, 241, 0.8)', 'rgba(236, 72, 153, 0.8)'],
+            borderColor: ['rgb(99, 102, 241)', 'rgb(236, 72, 153)'],
+            borderWidth: 2,
+            hoverOffset: 4,
+          },
+        ],
+      }
+
+      // Top names chart
+      const topNamesData = data.slice(0, 10)
+      charts.topNames = {
+        labels: topNamesData.map(item => item.name || item.Name),
+        datasets: [
+          {
+            label: 'Number of Births',
+            data: topNamesData.map(item => item.births || item.Births),
+            backgroundColor: 'rgba(34, 197, 94, 0.8)',
+            borderColor: 'rgb(34, 197, 94)',
+            borderWidth: 2,
+            borderRadius: 8,
+          },
+        ],
+      }
+    }
+
+    // Video Game Sales data visualization
+    if (hasGame && hasSales) {
+      // Platform breakdown
+      const platformData = data.reduce((acc: any, item) => {
+        const platform = item.platform || item.Platform
+        const sales = item.sales || item.Sales
+        if (!acc[platform]) acc[platform] = 0
+        acc[platform] += Number(sales) || 0
+        return acc
+      }, {})
+
+      const colors = [
+        'rgba(239, 68, 68, 0.8)',
+        'rgba(245, 158, 11, 0.8)',
+        'rgba(34, 197, 94, 0.8)',
+        'rgba(99, 102, 241, 0.8)',
+        'rgba(236, 72, 153, 0.8)',
+        'rgba(14, 165, 233, 0.8)',
+      ]
+
+      charts.platformBreakdown = {
+        labels: Object.keys(platformData),
+        datasets: [
+          {
+            label: 'Sales by Platform (Millions)',
+            data: Object.values(platformData),
+            backgroundColor: colors,
+            borderColor: colors.map(c => c.replace('0.8', '1')),
+            borderWidth: 2,
+            hoverOffset: 4,
+          },
+        ],
+      }
+
+      // Top games chart
+      const topGamesData = data.slice(0, 8)
+      charts.topGames = {
+        labels: topGamesData.map(item => item.game || item.Game),
+        datasets: [
+          {
+            label: 'Sales (Millions)',
+            data: topGamesData.map(item => item.sales || item.Sales),
+            backgroundColor: 'rgba(99, 102, 241, 0.8)',
+            borderColor: 'rgb(99, 102, 241)',
+            borderWidth: 2,
+            borderRadius: 8,
+          },
+        ],
+      }
+    }
+
+    // Slack Dashboard data visualization
+    if (hasChannel && hasMessages) {
+      // Channel activity breakdown
+      const channelData = data.reduce((acc: any, item) => {
+        const channel = item.channel || item.Channel
+        const messages = item.messages || item.Messages
+        if (!acc[channel]) acc[channel] = 0
+        acc[channel] += Number(messages) || 0
+        return acc
+      }, {})
+
+      const colors = [
+        'rgba(239, 68, 68, 0.8)',
+        'rgba(245, 158, 11, 0.8)',
+        'rgba(34, 197, 94, 0.8)',
+        'rgba(99, 102, 241, 0.8)',
+        'rgba(236, 72, 153, 0.8)',
+        'rgba(14, 165, 233, 0.8)',
+      ]
+
+      charts.channelActivity = {
+        labels: Object.keys(channelData),
+        datasets: [
+          {
+            label: 'Messages by Channel',
+            data: Object.values(channelData),
+            backgroundColor: colors,
+            borderColor: colors.map(c => c.replace('0.8', '1')),
+            borderWidth: 2,
+            hoverOffset: 4,
+          },
+        ],
+      }
+
+      // User engagement chart
+      if (hasUsers) {
+        const userEngagement = data.reduce((acc: any, item) => {
+          const channel = item.channel || item.Channel
+          const users = item.users || item.Users
+          if (!acc[channel]) acc[channel] = 0
+          acc[channel] += Number(users) || 0
+          return acc
+        }, {})
+
+        charts.userEngagement = {
+          labels: Object.keys(userEngagement),
+          datasets: [
+            {
+              label: 'Active Users',
+              data: Object.values(userEngagement),
+              backgroundColor: 'rgba(99, 102, 241, 0.8)',
+              borderColor: 'rgb(99, 102, 241)',
+              borderWidth: 2,
+              borderRadius: 8,
+            },
+          ],
+        }
+      }
+    }
+
+    // COVID Vaccine Dashboard data visualization
+    if (hasState && hasVaccinated) {
+      // Top states by vaccination
+      const topStates = data.slice(0, 10)
+      charts.topStates = {
+        labels: topStates.map(item => item.state || item.State),
+        datasets: [
+          {
+            label: 'Vaccinated Population',
+            data: topStates.map(item => (item.vaccinated || item.Vaccinated) / 1000000), // Convert to millions
+            backgroundColor: 'rgba(34, 197, 94, 0.8)',
+            borderColor: 'rgb(34, 197, 94)',
+            borderWidth: 2,
+            borderRadius: 8,
+          },
+        ],
+      }
+
+      // Vaccination percentage chart
+      if (hasPercentage) {
+        charts.vaccinationPercentage = {
+          labels: topStates.map(item => item.state || item.State),
+          datasets: [
+            {
+              label: 'Vaccination Percentage',
+              data: topStates.map(item => item.percentage || item.Percentage),
+              backgroundColor: 'rgba(99, 102, 241, 0.8)',
+              borderColor: 'rgb(99, 102, 241)',
+              borderWidth: 2,
+              borderRadius: 8,
+            },
+          ],
+        }
+      }
+    }
 
     // Time series data (quarters, months, or any time-based data)
     if ((hasQuarter || hasMonth) && hasRevenue) {
@@ -331,6 +533,123 @@ export default function InteractiveCharts({ data, insights }: Props) {
 
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {charts.genderBreakdown && (
+          <motion.div variants={itemVariants} className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+            <div className="flex items-center gap-2 mb-4">
+              <PieChart className="w-5 h-5 text-purple-600" />
+              <h4 className="font-semibold text-gray-800">Births by Gender</h4>
+            </div>
+            <div className="h-64">
+              <Doughnut
+                data={charts.genderBreakdown}
+                options={{
+                  ...chartOptions,
+                  cutout: '60%',
+                  scales: undefined,
+                }}
+              />
+            </div>
+          </motion.div>
+        )}
+
+        {charts.topNames && (
+          <motion.div variants={itemVariants} className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+            <div className="flex items-center gap-2 mb-4">
+              <BarChart3 className="w-5 h-5 text-green-600" />
+              <h4 className="font-semibold text-gray-800">Top Baby Names</h4>
+            </div>
+            <div className="h-64">
+              <Bar data={charts.topNames} options={chartOptions} />
+            </div>
+          </motion.div>
+        )}
+
+        {charts.platformBreakdown && (
+          <motion.div variants={itemVariants} className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+            <div className="flex items-center gap-2 mb-4">
+              <PieChart className="w-5 h-5 text-blue-600" />
+              <h4 className="font-semibold text-gray-800">Sales by Platform</h4>
+            </div>
+            <div className="h-64">
+              <Doughnut
+                data={charts.platformBreakdown}
+                options={{
+                  ...chartOptions,
+                  cutout: '60%',
+                  scales: undefined,
+                }}
+              />
+            </div>
+          </motion.div>
+        )}
+
+        {charts.topGames && (
+          <motion.div variants={itemVariants} className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+            <div className="flex items-center gap-2 mb-4">
+              <BarChart3 className="w-5 h-5 text-indigo-600" />
+              <h4 className="font-semibold text-gray-800">Top Video Games</h4>
+            </div>
+            <div className="h-64">
+              <Bar data={charts.topGames} options={chartOptions} />
+            </div>
+          </motion.div>
+        )}
+
+        {charts.channelActivity && (
+          <motion.div variants={itemVariants} className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+            <div className="flex items-center gap-2 mb-4">
+              <PieChart className="w-5 h-5 text-orange-600" />
+              <h4 className="font-semibold text-gray-800">Channel Activity</h4>
+            </div>
+            <div className="h-64">
+              <Doughnut
+                data={charts.channelActivity}
+                options={{
+                  ...chartOptions,
+                  cutout: '60%',
+                  scales: undefined,
+                }}
+              />
+            </div>
+          </motion.div>
+        )}
+
+        {charts.userEngagement && (
+          <motion.div variants={itemVariants} className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+            <div className="flex items-center gap-2 mb-4">
+              <BarChart3 className="w-5 h-5 text-cyan-600" />
+              <h4 className="font-semibold text-gray-800">User Engagement</h4>
+            </div>
+            <div className="h-64">
+              <Bar data={charts.userEngagement} options={chartOptions} />
+            </div>
+          </motion.div>
+        )}
+
+        {charts.topStates && (
+          <motion.div variants={itemVariants} className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+            <div className="flex items-center gap-2 mb-4">
+              <BarChart3 className="w-5 h-5 text-emerald-600" />
+              <h4 className="font-semibold text-gray-800">Vaccination by State</h4>
+            </div>
+            <div className="h-64">
+              <Bar data={charts.topStates} options={chartOptions} />
+            </div>
+          </motion.div>
+        )}
+
+        {charts.vaccinationPercentage && (
+          <motion.div variants={itemVariants} className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+            <div className="flex items-center gap-2 mb-4">
+              <BarChart3 className="w-5 h-5 text-violet-600" />
+              <h4 className="font-semibold text-gray-800">Vaccination Percentage</h4>
+            </div>
+            <div className="h-64">
+              <Bar data={charts.vaccinationPercentage} options={chartOptions} />
+            </div>
+          </motion.div>
+        )}
+
         {charts.timeSeries && (
           <motion.div variants={itemVariants} className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
             <div className="flex items-center gap-2 mb-4">
@@ -414,33 +733,83 @@ export default function InteractiveCharts({ data, insights }: Props) {
       {data && data.length > 0 && (
         <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {(() => {
-            const totalRevenue = data.reduce((sum, item) =>
-              sum + (Number(item.total_revenue || item.revenue || item.Revenue) || 0), 0
+            // Detect data type for appropriate metric calculations
+            const keys = Object.keys(data[0])
+            const hasRevenue = keys.some(k => k.toLowerCase().includes('revenue'))
+            const hasSales = keys.some(k => k.toLowerCase().includes('sales'))
+            const hasBirths = keys.some(k => k.toLowerCase().includes('births'))
+            const hasMessages = keys.some(k => k.toLowerCase().includes('messages'))
+            const hasVaccinated = keys.some(k => k.toLowerCase().includes('vaccinated'))
+
+            // Determine the main value field and its label
+            let valueField = '', valueLabel = '', totalLabel = '', avgLabel = '', maxLabel = ''
+
+            if (hasRevenue) {
+              valueField = 'revenue'
+              valueLabel = '$'
+              totalLabel = 'Total Revenue'
+              avgLabel = 'Average Revenue'
+              maxLabel = 'Peak Performance'
+            } else if (hasSales) {
+              valueField = 'sales'
+              valueLabel = 'M'
+              totalLabel = 'Total Sales'
+              avgLabel = 'Average Sales'
+              maxLabel = 'Top Game Sales'
+            } else if (hasBirths) {
+              valueField = 'births'
+              valueLabel = ''
+              totalLabel = 'Total Births'
+              avgLabel = 'Average Births'
+              maxLabel = 'Most Popular Name'
+            } else if (hasMessages) {
+              valueField = 'messages'
+              valueLabel = ''
+              totalLabel = 'Total Messages'
+              avgLabel = 'Average Messages'
+              maxLabel = 'Most Active Channel'
+            } else if (hasVaccinated) {
+              valueField = 'vaccinated'
+              valueLabel = ''
+              totalLabel = 'Total Vaccinated'
+              avgLabel = 'Average per State'
+              maxLabel = 'Highest State'
+            } else {
+              // Fallback
+              valueField = 'revenue'
+              valueLabel = '$'
+              totalLabel = 'Total Revenue'
+              avgLabel = 'Average Revenue'
+              maxLabel = 'Peak Performance'
+            }
+
+            const totalValue = data.reduce((sum, item) =>
+              sum + (Number(item[valueField] || item.total_revenue || item.revenue || item.Revenue) || 0), 0
             )
             const totalOrders = data.reduce((sum, item) =>
-              sum + (Number(item.orders || item.Orders || item.quantity || item.total_bikes_sold) || 0), 0
+              sum + (Number(item.orders || item.Orders || item.quantity || item.total_bikes_sold || item.users || item.messages) || 0), 0
             )
-            const avgRevenue = totalRevenue / data.length
-            const maxRevenue = Math.max(...data.map(item =>
-              Number(item.total_revenue || item.revenue || item.Revenue) || 0
+            const avgValue = totalValue / data.length
+            const maxValue = Math.max(...data.map(item =>
+              Number(item[valueField] || item.total_revenue || item.revenue || item.Revenue) || 0
             ))
 
             const metrics = [
               {
-                title: 'Total Revenue',
-                value: `$${totalRevenue.toLocaleString()}`,
+                title: totalLabel,
+                value: `${valueLabel}${Math.round(totalValue).toLocaleString()}`,
                 color: 'from-green-500 to-emerald-600',
                 icon: '💰',
               },
               {
-                title: 'Average Revenue',
-                value: `$${Math.round(avgRevenue).toLocaleString()}`,
+                title: avgLabel,
+                value: `${valueLabel}${Math.round(avgValue).toLocaleString()}`,
                 color: 'from-blue-500 to-cyan-600',
                 icon: '📊',
               },
               {
-                title: 'Peak Performance',
-                value: `$${maxRevenue.toLocaleString()}`,
+                title: maxLabel,
+                value: `${valueLabel}${Math.round(maxValue).toLocaleString()}`,
                 color: 'from-purple-500 to-pink-600',
                 icon: '🚀',
               },

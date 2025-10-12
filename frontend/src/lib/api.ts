@@ -41,7 +41,7 @@ class ApiClient {
   }
 
   async textQuery(query: TextQuery): Promise<AnalyticsResponse> {
-    return this.request<AnalyticsResponse>('/direct-query', {
+    return this.request<AnalyticsResponse>('/query', {
       method: 'POST',
       body: JSON.stringify(query),
     });

@@ -54,11 +54,17 @@ func NewAnalyticsService(agentManager *agent.Manager, enhancedAnalytics *Enhance
 func (as *AnalyticsService) ProcessQuery(ctx context.Context, query string) (*AnalyticsResponse, error) {
 	as.logger.Info("Processing text query", "query", query)
 
+	// Parse intent for better routing decisions
+	intent, confidence := ParseQueryIntent(query)
+	as.logger.Info("Intent parsed", "intent", intent, "confidence", confidence, "query", query)
+
 	// Check if this should be routed to Superset agent
 	if shouldUseSupersetAgent(query) {
-		as.logger.Info("🎮 ROUTING TO SUPERSET AGENT FOR GAMING QUERY 🎮", "query", query)
+		as.logger.Info("📊 ROUTING TO SUPERSET AGENT", "intent", intent, "confidence", confidence, "query", query)
 		return as.processSupersetQuery(ctx, query)
 	}
+
+	as.logger.Info("Intent-based routing did not match, falling back to enhanced analytics", "intent", intent, "confidence", confidence)
 
 	// Use enhanced analytics service if available
 	if as.enhancedAnalytics != nil {
@@ -321,7 +327,23 @@ func (as *AnalyticsService) processSupersetQuery(ctx context.Context, query stri
 	}
 
 	if len(data) == 0 {
-		return nil, fmt.Errorf("no data returned from any Superset connector")
+		if len(supersetConnectors) == 0 {
+			return nil, fmt.Errorf("no Superset connectors configured. Please add a Superset connector to fetch analytics data")
+		}
+
+		// Check if connectors are connected
+		connectedCount := 0
+		for _, conn := range supersetConnectors {
+			if conn.Status == models.ConnectorStatusConnected {
+				connectedCount++
+			}
+		}
+
+		if connectedCount == 0 {
+			return nil, fmt.Errorf("all Superset connectors are disconnected. Please check your Superset connection settings")
+		}
+
+		return nil, fmt.Errorf("no actual sales data could be retrieved from %d connected Superset connector(s). The connectors may not have access to sales data", connectedCount)
 	}
 
 	// Generate insights with LLM
@@ -383,22 +405,60 @@ func (as *AnalyticsService) querySupersetConnector(ctx context.Context, connecto
 	return result.Data, nil
 }
 
-// Helper function to check if a query should use Superset
-func shouldUseSupersetAgent(query string) bool {
+// IntentType represents different types of user intents
+type IntentType string
+
+const (
+	IntentAnalytics      IntentType = "analytics"       // Business analytics, metrics, trends
+	IntentVisualization  IntentType = "visualization"   // Dashboards, charts, reports
+	IntentDataRetrieval  IntentType = "data_retrieval"  // Raw data fetching
+	IntentComparison     IntentType = "comparison"      // Comparing metrics over time/segments
+	IntentCausalAnalysis IntentType = "causal_analysis" // Why/root cause analysis
+	IntentOther          IntentType = "other"           // Fallback
+)
+
+// ParseQueryIntent determines the intent type and confidence level
+func ParseQueryIntent(query string) (IntentType, float64) {
 	queryLower := strings.ToLower(query)
 
-	// Gaming and entertainment queries
-	if strings.Contains(queryLower, "game") || strings.Contains(queryLower, "gaming") ||
-	   strings.Contains(queryLower, "entertainment") || strings.Contains(queryLower, "dashboard") ||
-	   strings.Contains(queryLower, "chart") || strings.Contains(queryLower, "visualization") {
-		return true
+	// High-confidence business analytics patterns
+	if containsAny(queryLower, []string{"why", "reason", "cause", "because", "decline", "drop", "increase"}) {
+		return IntentCausalAnalysis, 0.9
 	}
 
-	// Analytics and trend queries
-	if strings.Contains(queryLower, "trend") || strings.Contains(queryLower, "analysis") ||
-	   strings.Contains(queryLower, "analytics") || strings.Contains(queryLower, "top") {
-		return true
+	if containsAny(queryLower, []string{"compare", "vs", "versus", "difference", "better", "worse"}) {
+		return IntentComparison, 0.9
 	}
 
-	return false
+	if containsAny(queryLower, []string{"dashboard", "chart", "visualization", "graph", "report"}) {
+		return IntentVisualization, 0.8
+	}
+
+	if containsAny(queryLower, []string{"sales", "revenue", "profit", "performance", "metrics", "kpi", "trend", "analytics"}) {
+		return IntentAnalytics, 0.8
+	}
+
+	if containsAny(queryLower, []string{"show", "get", "fetch", "data", "list", "display"}) {
+		return IntentDataRetrieval, 0.7
+	}
+
+	return IntentOther, 0.3
+}
+
+
+// Helper function to check if a query should use Superset
+func shouldUseSupersetAgent(query string) bool {
+	intent, confidence := ParseQueryIntent(query)
+
+	// Route to Superset for all data-related intents with reasonable confidence
+	switch intent {
+	case IntentAnalytics, IntentVisualization, IntentDataRetrieval, IntentComparison, IntentCausalAnalysis:
+		return confidence >= 0.6 // Minimum confidence threshold
+	case IntentOther:
+		// Legacy gaming check for backward compatibility
+		queryLower := strings.ToLower(query)
+		return strings.Contains(queryLower, "game") || strings.Contains(queryLower, "gaming") || strings.Contains(queryLower, "entertainment")
+	default:
+		return false
+	}
 }

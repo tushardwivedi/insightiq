@@ -125,18 +125,9 @@ func (eas *EnhancedAnalyticsService) ProcessQuery(ctx context.Context, req *Enha
 		}
 	}
 
-	// 3. Fallback to default sources if no connectors available
+	// 3. Check if any data was retrieved from connectors
 	if len(combinedData) == 0 {
-		fallbackData, err := eas.fetchFromFallbackSources(ctx, req.Query)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get data from any source: %w", err)
-		}
-		combinedData = fallbackData
-		allData["fallback"] = fallbackData
-	}
-
-	if len(combinedData) == 0 {
-		return nil, fmt.Errorf("no data available from any source")
+		return nil, fmt.Errorf("no data available from configured connectors. Please check your connector configuration and ensure they contain the requested data")
 	}
 
 	// 4. Generate comprehensive analysis with enhanced RAG context using intent
@@ -161,76 +152,12 @@ func (eas *EnhancedAnalyticsService) ProcessQuery(ctx context.Context, req *Enha
 	}, nil
 }
 
-// ExecuteCustomSQL executes SQL queries through available connectors
+// ExecuteCustomSQL is disabled to prevent direct SQL execution on internal databases
 func (eas *EnhancedAnalyticsService) ExecuteCustomSQL(ctx context.Context, sql, question string) (*EnhancedAnalyticsResponse, error) {
-	start := time.Now()
-	eas.logger.Info("Executing custom SQL", "sql", sql)
+	eas.logger.Info("Custom SQL execution disabled - use configured external connectors only")
 
-	// Try to execute on available PostgreSQL connectors first
-	pgConnectors, err := eas.connectorService.GetConnectorsByType(ctx, models.ConnectorTypePostgres)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get postgres connectors: %w", err)
-	}
-
-	var data []map[string]interface{}
-	var sourceConnector *models.DataConnector
-
-	for _, connector := range pgConnectors {
-		if connector.Status != models.ConnectorStatusConnected {
-			continue
-		}
-
-		config := connector.Config
-		url, _ := config["url"].(string)
-
-		postgresConn, err := connectors.NewPostgresConnector(url, eas.logger)
-		if err != nil {
-			continue
-		}
-
-		result, err := postgresConn.ExecuteQuery(ctx, sql)
-		postgresConn.Close()
-
-		if err != nil {
-			eas.logger.Warn("SQL execution failed on connector", "connector", connector.Name, "error", err)
-			continue
-		}
-
-		data = result.Data
-		sourceConnector = connector
-		break
-	}
-
-	// All SQL execution now goes through connector system only
-
-	if len(data) == 0 {
-		return nil, fmt.Errorf("no data returned from SQL query")
-	}
-
-	// Generate insights
-	insights, err := eas.llmConn.AnalyzeData(ctx, data, question)
-	if err != nil {
-		return nil, fmt.Errorf("failed to analyze data: %w", err)
-	}
-
-	response := &EnhancedAnalyticsResponse{
-		Query:       question,
-		Data:        data,
-		Analysis:    insights,
-		Timestamp:   time.Now(),
-		ProcessTime: time.Since(start).String(),
-		TaskID:      fmt.Sprintf("sql_task_%d", start.Unix()),
-		Status:      "completed",
-	}
-
-	if sourceConnector != nil {
-		response.DataSources = []string{sourceConnector.Name}
-		response.Sources = map[string]interface{}{
-			sourceConnector.Name: data,
-		}
-	}
-
-	return response, nil
+	// Custom SQL execution disabled to prevent direct database access
+	return nil, fmt.Errorf("custom SQL execution is disabled. Please use the /api/query endpoint with natural language queries that will route to your configured external connectors")
 }
 
 // analyzeQueryForDataSources determines which data sources are most relevant for a query
@@ -342,48 +269,17 @@ func (eas *EnhancedAnalyticsService) fetchFromSuperset(ctx context.Context, conn
 
 // fetchFromPostgres retrieves data from a PostgreSQL connector
 func (eas *EnhancedAnalyticsService) fetchFromPostgres(ctx context.Context, connector *models.DataConnector, query string) ([]map[string]interface{}, error) {
-	config := connector.Config
-	url, _ := config["url"].(string)
-
-	postgresConn, err := connectors.NewPostgresConnector(url, eas.logger)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create postgres connection: %w", err)
-	}
-	defer postgresConn.Close()
-
-	// Determine appropriate query based on user input
-	var result *connectors.QueryResult
-	if containsAny(strings.ToLower(query), []string{"sales", "bike", "revenue"}) {
-		result, err = postgresConn.GetBikeSalesData(ctx)
-	} else if containsAny(strings.ToLower(query), []string{"users", "active", "monthly"}) {
-		result, err = postgresConn.GetMonthlyActiveUsers(ctx)
-	} else {
-		// Default to bike sales data
-		result, err = postgresConn.GetBikeSalesData(ctx)
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	return result.Data, nil
+	// PostgreSQL connectors are disabled to prevent fallback to internal database
+	// All data should come from configured external connectors (Superset, etc.)
+	return nil, fmt.Errorf("PostgreSQL connectors are disabled. Please use configured external connectors (Superset, etc.) for data retrieval")
 }
 
-// fetchFromFallbackSources uses the original hardcoded connections as fallback
+// fetchFromFallbackSources is disabled to prevent any fallback to internal databases
 func (eas *EnhancedAnalyticsService) fetchFromFallbackSources(ctx context.Context, query string) ([]map[string]interface{}, error) {
-	eas.logger.Info("Using fallback data sources")
+	eas.logger.Info("Fallback data sources are disabled - only configured external connectors allowed")
 
-	// Try PostgreSQL fallback first
-	if eas.fallbackPostgres != nil {
-		result, err := eas.fallbackPostgres.GetBikeSalesData(ctx)
-		if err == nil && len(result.Data) > 0 {
-			return result.Data, nil
-		}
-	}
-
-	// Superset fallback removed - use connector-based approach only
-
-	return nil, fmt.Errorf("all fallback sources failed")
+	// All fallback mechanisms disabled to ensure only external connectors are used
+	return nil, fmt.Errorf("fallback data sources are disabled. Please ensure your external connectors (Superset, etc.) contain the required data")
 }
 
 // generateAnalysisWithRAG creates comprehensive analysis using RAG (Retrieval Augmented Generation)
@@ -569,18 +465,9 @@ func (eas *EnhancedAnalyticsService) processWithBasicRouting(
 		}
 	}
 
-	// Fallback to default sources if no connectors available
+	// Check if any data was retrieved from connectors
 	if len(combinedData) == 0 {
-		fallbackData, err := eas.fetchFromFallbackSources(ctx, req.Query)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get data from any source: %w", err)
-		}
-		combinedData = fallbackData
-		allData["fallback"] = fallbackData
-	}
-
-	if len(combinedData) == 0 {
-		return nil, fmt.Errorf("no data available from any source")
+		return nil, fmt.Errorf("no data available from configured connectors. Please check your connector configuration and ensure they contain the requested data")
 	}
 
 	// Generate analysis using basic or intent-based RAG
