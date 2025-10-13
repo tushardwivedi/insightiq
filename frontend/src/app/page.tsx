@@ -37,41 +37,41 @@ export default function Dashboard() {
       {/* Connector Sidebar */}
       <ConnectorSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header with sidebar toggle */}
-        <div className="bg-white shadow-sm border-b border-gray-200">
-          <div className="container mx-auto px-4 py-4">
+      {/* Main Content - Adjust for collapsible sidebar */}
+      <div className="flex-1 flex flex-col ml-0 lg:ml-16 transition-all duration-300 ease-in-out">
+        {/* Sticky Header with sidebar toggle */}
+        <div className="sticky top-0 z-40 bg-white shadow-sm border-b border-gray-200">
+          <div className="container mx-auto px-4 py-2">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => setSidebarOpen(true)}
                 className="lg:hidden p-2 hover:bg-gray-100 rounded-md transition-colors"
+                title="Open Data Sources"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               </button>
               <div className="hidden lg:block">
-                <button
-                  onClick={() => setSidebarOpen(true)}
-                  className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                >
+                <div className="flex items-center gap-2 px-2 py-1 text-sm text-gray-600">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 1.79 4 4 4h8c2.21 0 4-1.79 4-4V7c0-2.21-1.79-4-4-4H8c-2.21 0-4 1.79-4 4z" />
                   </svg>
-                  Data Sources
-                </button>
+                  <span className="text-xs">Hover left sidebar to expand</span>
+                </div>
               </div>
               <div className="flex-1">
                 <Header />
               </div>
             </div>
-            <StatusIndicator health={health} />
+            <div className="mt-1">
+              <StatusIndicator health={health} />
+            </div>
           </div>
         </div>
 
-        {/* Scrollable Content Area */}
-        <div className="flex-1 overflow-y-auto">
+        {/* Scrollable Content Area with proper top spacing */}
+        <div className="flex-1 overflow-y-auto pt-4">
           <div className="container mx-auto px-4 py-8">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <div>
