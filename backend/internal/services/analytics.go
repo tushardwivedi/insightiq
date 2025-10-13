@@ -11,6 +11,7 @@ import (
 
 	"insightiq/backend/internal/agent"
 	"insightiq/backend/internal/connectors"
+	"insightiq/backend/internal/intent"
 	"insightiq/backend/internal/models"
 	"strings"
 )
@@ -20,6 +21,7 @@ type AnalyticsService struct {
 	enhancedAnalytics    *EnhancedAnalyticsService
 	connectorService     *ConnectorService
 	llmConn             *connectors.OllamaConnector
+	intentService        *intent.ClassificationService
 	logger               *slog.Logger
 }
 
@@ -51,20 +53,64 @@ func NewAnalyticsService(agentManager *agent.Manager, enhancedAnalytics *Enhance
 	}
 }
 
+// NewAnalyticsServiceWithRAG creates a new analytics service with RAG intent classification
+func NewAnalyticsServiceWithRAG(agentManager *agent.Manager, enhancedAnalytics *EnhancedAnalyticsService, connectorService *ConnectorService, llmConn *connectors.OllamaConnector, intentService *intent.ClassificationService, logger *slog.Logger) *AnalyticsService {
+	return &AnalyticsService{
+		agentManager:      agentManager,
+		enhancedAnalytics: enhancedAnalytics,
+		connectorService:  connectorService,
+		llmConn:          llmConn,
+		intentService:     intentService,
+		logger:            logger.With("service", "analytics"),
+	}
+}
+
 func (as *AnalyticsService) ProcessQuery(ctx context.Context, query string) (*AnalyticsResponse, error) {
 	as.logger.Info("Processing text query", "query", query)
 
-	// Parse intent for better routing decisions
-	intent, confidence := ParseQueryIntent(query)
-	as.logger.Info("Intent parsed", "intent", intent, "confidence", confidence, "query", query)
+	// Use RAG intent classification if available, otherwise fallback to legacy parsing
+	var shouldUseSuperset bool
+	var intentStr string
+	var confidence float64
+
+	if as.intentService != nil {
+		classificationResult, err := as.intentService.ClassifyQuery(ctx, query)
+		if err != nil {
+			as.logger.Warn("RAG intent classification failed, falling back to legacy parsing", "error", err)
+			// Fallback to legacy intent parsing
+			legacyIntent, legacyConfidence := ParseQueryIntent(query)
+			intentStr = string(legacyIntent)
+			confidence = legacyConfidence
+			shouldUseSuperset = shouldUseSupersetAgent(query)
+		} else {
+			as.logger.Info("RAG intent classification successful",
+				"domain", classificationResult.Domain,
+				"intent", classificationResult.Intent,
+				"confidence", classificationResult.Confidence,
+				"reasoning", classificationResult.Reasoning)
+
+			intentStr = string(classificationResult.Intent)
+			confidence = classificationResult.Confidence
+			// Use superset for specific domains with high confidence
+			shouldUseSuperset = confidence >= 0.6 && (classificationResult.Domain != "general")
+		}
+	} else {
+		// Legacy intent parsing
+		legacyIntent, legacyConfidence := ParseQueryIntent(query)
+		intentStr = string(legacyIntent)
+		confidence = legacyConfidence
+		shouldUseSuperset = shouldUseSupersetAgent(query)
+	}
+
+	as.logger.Info("Intent analysis complete", "intent", intentStr, "confidence", confidence, "use_superset", shouldUseSuperset)
 
 	// Check if this should be routed to Superset agent
-	if shouldUseSupersetAgent(query) {
-		as.logger.Info("📊 ROUTING TO SUPERSET AGENT", "intent", intent, "confidence", confidence, "query", query)
+	if shouldUseSuperset {
+		as.logger.Info("📊 ROUTING TO SUPERSET AGENT", "intent", intentStr, "confidence", confidence, "query", query)
 		return as.processSupersetQuery(ctx, query)
 	}
 
-	as.logger.Info("Intent-based routing did not match, falling back to enhanced analytics", "intent", intent, "confidence", confidence)
+	as.logger.Info("Intent-based routing did not match, falling back to enhanced analytics", "intent", intentStr, "confidence", confidence)
 
 	// Use enhanced analytics service if available
 	if as.enhancedAnalytics != nil {

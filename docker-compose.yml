@@ -52,6 +52,24 @@ services:
       - backend-network
     restart: unless-stopped
 
+  # Qdrant Vector Database
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "127.0.0.1:6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__HTTP_PORT=6333
+    networks:
+      - backend-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
   # Go Backend
   agent:
     build:
@@ -67,9 +85,11 @@ services:
       - postgres
       - ollama
       - whisper
+      - qdrant
     environment:
       - OLLAMA_URL=${OLLAMA_URL:-http://ollama:11434}
       - WHISPER_URL=${WHISPER_URL:-http://whisper:9000}
+      - QDRANT_URL=${QDRANT_URL:-http://qdrant:6333}
       - POSTGRES_URL=${POSTGRES_URL:-postgres://insightiq_user:insightiq_password@postgres:5432/insightiq?sslmode=disable}
     networks:
       - backend-network
@@ -110,3 +130,4 @@ volumes:
   postgres_data:
   ollama_data:
   whisper_models:
+  qdrant_data:

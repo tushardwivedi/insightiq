@@ -15,9 +15,13 @@ import (
 
 	"insightiq/backend/internal/agent"
 	"insightiq/backend/internal/connectors"
+	"insightiq/backend/internal/embedding"
 	httpserver "insightiq/backend/internal/http" // Fixed: Use alias to avoid conflict
+	"insightiq/backend/internal/intent"
 	"insightiq/backend/internal/repository"
+	"insightiq/backend/internal/schema"
 	"insightiq/backend/internal/services"
+	"insightiq/backend/internal/vectorstore"
 )
 
 func main() {
@@ -75,8 +79,30 @@ func main() {
 
 	connectorService := services.NewConnectorService(connectorRepo, logger)
 
-	ollamaConn := connectors.NewOllamaConnector(
-		getEnvOrDefault("OLLAMA_URL", "http://ollama:11434"), logger)
+	// Initialize RAG infrastructure
+	qdrantURL := getEnvOrDefault("QDRANT_URL", "http://qdrant:6333")
+	vectorStore := vectorstore.NewQdrantClient(qdrantURL, logger)
+
+	// Initialize embedding service
+	ollamaURL := getEnvOrDefault("OLLAMA_URL", "http://ollama:11434")
+	embeddingService := embedding.NewOllamaEmbeddingService(ollamaURL, "nomic-embed-text", logger)
+
+	// Initialize schema ingestion service
+	ingestionService := schema.NewIngestionService(vectorStore, embeddingService, logger)
+
+	// Initialize intent classification service
+	intentService := intent.NewClassificationService(vectorStore, embeddingService, logger)
+
+	// Ingest domain contexts on startup
+	go func() {
+		if err := ingestionService.IngestDomainContexts(ctx); err != nil {
+			logger.Error("Failed to ingest domain contexts", "error", err)
+		} else {
+			logger.Info("Domain contexts ingested successfully")
+		}
+	}()
+
+	ollamaConn := connectors.NewOllamaConnector(ollamaURL, logger)
 
 	whisperConn := connectors.NewWhisperConnector(
 		getEnvOrDefault("WHISPER_URL", "http://whisper:9000"), logger)
@@ -109,8 +135,8 @@ func main() {
 		}
 	}()
 
-	// Initialize services with enhanced analytics
-	analyticsService := services.NewAnalyticsService(agentManager, enhancedAnalyticsService, connectorService, ollamaConn, logger)
+	// Initialize services with enhanced analytics and RAG intent classification
+	analyticsService := services.NewAnalyticsServiceWithRAG(agentManager, enhancedAnalyticsService, connectorService, ollamaConn, intentService, logger)
 	voiceService := services.NewVoiceService(agentManager, logger)
 
 	// Create planner service
