@@ -24,6 +24,46 @@ import (
 	"insightiq/backend/internal/vectorstore"
 )
 
+// ConnectorServiceAdapter adapts services.ConnectorService to schema.ConnectorService to avoid circular imports
+type ConnectorServiceAdapter struct {
+	connectorService *services.ConnectorService
+}
+
+func (c *ConnectorServiceAdapter) ListConnectors(ctx context.Context) ([]schema.ConnectorInfo, error) {
+	connectors, err := c.connectorService.GetConnectors(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []schema.ConnectorInfo
+	for _, conn := range connectors {
+		result = append(result, schema.ConnectorInfo{
+			ID:     conn.ID,
+			Name:   conn.Name,
+			Type:   string(conn.Type),
+			Status: string(conn.Status),
+			Config: map[string]interface{}(conn.Config),
+		})
+	}
+
+	return result, nil
+}
+
+func (c *ConnectorServiceAdapter) GetConnector(ctx context.Context, id string) (*schema.ConnectorInfo, error) {
+	conn, err := c.connectorService.GetConnector(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return &schema.ConnectorInfo{
+		ID:     conn.ID,
+		Name:   conn.Name,
+		Type:   string(conn.Type),
+		Status: string(conn.Status),
+		Config: map[string]interface{}(conn.Config),
+	}, nil
+}
+
 func main() {
 	// Health check flag for distroless image
 	healthCheck := flag.Bool("health-check", false, "Perform health check and exit")
@@ -83,26 +123,44 @@ func main() {
 	qdrantURL := getEnvOrDefault("QDRANT_URL", "http://qdrant:6333")
 	vectorStore := vectorstore.NewQdrantClient(qdrantURL, logger)
 
-	// Initialize embedding service
+	// Initialize embedding service and Ollama connector
 	ollamaURL := getEnvOrDefault("OLLAMA_URL", "http://ollama:11434")
 	embeddingService := embedding.NewOllamaEmbeddingService(ollamaURL, "nomic-embed-text", logger)
+	ollamaConn := connectors.NewOllamaConnector(ollamaURL, logger)
 
-	// Initialize schema ingestion service
+	// Initialize basic schema ingestion service
 	ingestionService := schema.NewIngestionService(vectorStore, embeddingService, logger)
+
+	// Create connector adapter to avoid circular imports
+	connectorAdapter := &ConnectorServiceAdapter{connectorService: connectorService}
+
+	// Initialize schema scanner and analyzer for dynamic contexts
+	scannerService := schema.NewScannerService(connectorAdapter, logger)
+	analyzerService := schema.NewAnalyzerService(scannerService, ollamaConn, logger)
+	domainGenerator := schema.NewDomainGeneratorService(analyzerService, vectorStore, embeddingService, logger)
+
+	// Initialize enhanced ingestion service with dynamic capabilities
+	enhancedIngestionService := schema.NewEnhancedIngestionService(
+		vectorStore, embeddingService, domainGenerator, connectorAdapter, logger)
 
 	// Initialize intent classification service
 	intentService := intent.NewClassificationService(vectorStore, embeddingService, logger)
 
-	// Ingest domain contexts on startup
+	// Ingest predefined domain contexts on startup
 	go func() {
 		if err := ingestionService.IngestDomainContexts(ctx); err != nil {
-			logger.Error("Failed to ingest domain contexts", "error", err)
+			logger.Error("Failed to ingest predefined domain contexts", "error", err)
 		} else {
-			logger.Info("Domain contexts ingested successfully")
+			logger.Info("Predefined domain contexts ingested successfully")
+		}
+
+		// Ingest dynamic contexts for all connected connectors
+		if err := enhancedIngestionService.IngestAllConnectorContexts(ctx); err != nil {
+			logger.Warn("Failed to ingest some connector contexts", "error", err)
+		} else {
+			logger.Info("Dynamic connector contexts ingested successfully")
 		}
 	}()
-
-	ollamaConn := connectors.NewOllamaConnector(ollamaURL, logger)
 
 	whisperConn := connectors.NewWhisperConnector(
 		getEnvOrDefault("WHISPER_URL", "http://whisper:9000"), logger)
