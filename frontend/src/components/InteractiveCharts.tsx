@@ -516,16 +516,16 @@ export default function InteractiveCharts({ data, insights }: Props) {
       {/* Header with AI Insights */}
       <motion.div variants={itemVariants} className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 via-purple-600/10 to-pink-600/10 rounded-2xl"></div>
-        <div className="relative bg-white/90 backdrop-blur-sm rounded-2xl p-6 border border-gray-200/50 shadow-lg">
+        <div className="relative card backdrop-blur-sm rounded-2xl p-6  ">
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg">
               <Target className="w-5 h-5 text-white" />
             </div>
-            <h3 className="text-xl font-semibold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+            <h3 className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>
               AI Insights & Visualizations
             </h3>
           </div>
-          <div className="text-gray-700 leading-relaxed">
+          <div className="leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
             {insights || 'AI analysis of your data reveals interesting patterns and trends.'}
           </div>
         </div>
@@ -534,10 +534,10 @@ export default function InteractiveCharts({ data, insights }: Props) {
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {charts.genderBreakdown && (
-          <motion.div variants={itemVariants} className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+          <motion.div variants={itemVariants} className="card p-6  ">
             <div className="flex items-center gap-2 mb-4">
               <PieChart className="w-5 h-5 text-purple-600" />
-              <h4 className="font-semibold text-gray-800">Births by Gender</h4>
+              <h4 className="font-semibold" style={{ color: 'var(--text-primary)' }}>Births by Gender</h4>
             </div>
             <div className="h-64">
               <Doughnut
@@ -553,10 +553,10 @@ export default function InteractiveCharts({ data, insights }: Props) {
         )}
 
         {charts.topNames && (
-          <motion.div variants={itemVariants} className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+          <motion.div variants={itemVariants} className="card p-6  ">
             <div className="flex items-center gap-2 mb-4">
               <BarChart3 className="w-5 h-5 text-green-600" />
-              <h4 className="font-semibold text-gray-800">Top Baby Names</h4>
+              <h4 className="font-semibold" style={{ color: 'var(--text-primary)' }}>Top Baby Names</h4>
             </div>
             <div className="h-64">
               <Bar data={charts.topNames} options={chartOptions} />
@@ -565,10 +565,10 @@ export default function InteractiveCharts({ data, insights }: Props) {
         )}
 
         {charts.platformBreakdown && (
-          <motion.div variants={itemVariants} className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+          <motion.div variants={itemVariants} className="card p-6  ">
             <div className="flex items-center gap-2 mb-4">
               <PieChart className="w-5 h-5 text-blue-600" />
-              <h4 className="font-semibold text-gray-800">Sales by Platform</h4>
+              <h4 className="font-semibold" style={{ color: 'var(--text-primary)' }}>Sales by Platform</h4>
             </div>
             <div className="h-64">
               <Doughnut
@@ -584,10 +584,10 @@ export default function InteractiveCharts({ data, insights }: Props) {
         )}
 
         {charts.topGames && (
-          <motion.div variants={itemVariants} className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+          <motion.div variants={itemVariants} className="card p-6  ">
             <div className="flex items-center gap-2 mb-4">
               <BarChart3 className="w-5 h-5 text-indigo-600" />
-              <h4 className="font-semibold text-gray-800">Top Video Games</h4>
+              <h4 className="font-semibold" style={{ color: 'var(--text-primary)' }}>Top Video Games</h4>
             </div>
             <div className="h-64">
               <Bar data={charts.topGames} options={chartOptions} />
@@ -596,10 +596,10 @@ export default function InteractiveCharts({ data, insights }: Props) {
         )}
 
         {charts.channelActivity && (
-          <motion.div variants={itemVariants} className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+          <motion.div variants={itemVariants} className="card p-6  ">
             <div className="flex items-center gap-2 mb-4">
               <PieChart className="w-5 h-5 text-orange-600" />
-              <h4 className="font-semibold text-gray-800">Channel Activity</h4>
+              <h4 className="font-semibold" style={{ color: 'var(--text-primary)' }}>Channel Activity</h4>
             </div>
             <div className="h-64">
               <Doughnut
@@ -615,10 +615,10 @@ export default function InteractiveCharts({ data, insights }: Props) {
         )}
 
         {charts.userEngagement && (
-          <motion.div variants={itemVariants} className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+          <motion.div variants={itemVariants} className="card p-6  ">
             <div className="flex items-center gap-2 mb-4">
               <BarChart3 className="w-5 h-5 text-cyan-600" />
-              <h4 className="font-semibold text-gray-800">User Engagement</h4>
+              <h4 className="font-semibold" style={{ color: 'var(--text-primary)' }}>User Engagement</h4>
             </div>
             <div className="h-64">
               <Bar data={charts.userEngagement} options={chartOptions} />
@@ -627,10 +627,10 @@ export default function InteractiveCharts({ data, insights }: Props) {
         )}
 
         {charts.topStates && (
-          <motion.div variants={itemVariants} className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+          <motion.div variants={itemVariants} className="card p-6  ">
             <div className="flex items-center gap-2 mb-4">
               <BarChart3 className="w-5 h-5 text-emerald-600" />
-              <h4 className="font-semibold text-gray-800">Vaccination by State</h4>
+              <h4 className="font-semibold" style={{ color: 'var(--text-primary)' }}>Vaccination by State</h4>
             </div>
             <div className="h-64">
               <Bar data={charts.topStates} options={chartOptions} />
@@ -639,10 +639,10 @@ export default function InteractiveCharts({ data, insights }: Props) {
         )}
 
         {charts.vaccinationPercentage && (
-          <motion.div variants={itemVariants} className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+          <motion.div variants={itemVariants} className="card p-6  ">
             <div className="flex items-center gap-2 mb-4">
               <BarChart3 className="w-5 h-5 text-violet-600" />
-              <h4 className="font-semibold text-gray-800">Vaccination Percentage</h4>
+              <h4 className="font-semibold" style={{ color: 'var(--text-primary)' }}>Vaccination Percentage</h4>
             </div>
             <div className="h-64">
               <Bar data={charts.vaccinationPercentage} options={chartOptions} />
@@ -651,10 +651,10 @@ export default function InteractiveCharts({ data, insights }: Props) {
         )}
 
         {charts.timeSeries && (
-          <motion.div variants={itemVariants} className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+          <motion.div variants={itemVariants} className="card p-6  ">
             <div className="flex items-center gap-2 mb-4">
               <TrendingUp className="w-5 h-5 text-blue-600" />
-              <h4 className="font-semibold text-gray-800">Revenue Trend</h4>
+              <h4 className="font-semibold" style={{ color: 'var(--text-primary)' }}>Revenue Trend</h4>
             </div>
             <div className="h-64">
               <Line data={charts.timeSeries} options={chartOptions} />
@@ -663,10 +663,10 @@ export default function InteractiveCharts({ data, insights }: Props) {
         )}
 
         {charts.categoryBar && (
-          <motion.div variants={itemVariants} className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+          <motion.div variants={itemVariants} className="card p-6  ">
             <div className="flex items-center gap-2 mb-4">
               <BarChart3 className="w-5 h-5 text-green-600" />
-              <h4 className="font-semibold text-gray-800">Category Performance</h4>
+              <h4 className="font-semibold" style={{ color: 'var(--text-primary)' }}>Category Performance</h4>
             </div>
             <div className="h-64">
               <Bar data={charts.categoryBar} options={chartOptions} />
@@ -675,10 +675,10 @@ export default function InteractiveCharts({ data, insights }: Props) {
         )}
 
         {charts.categoryBreakdown && (
-          <motion.div variants={itemVariants} className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+          <motion.div variants={itemVariants} className="card p-6  ">
             <div className="flex items-center gap-2 mb-4">
               <PieChart className="w-5 h-5 text-purple-600" />
-              <h4 className="font-semibold text-gray-800">Market Share</h4>
+              <h4 className="font-semibold" style={{ color: 'var(--text-primary)' }}>Market Share</h4>
             </div>
             <div className="h-64">
               <Doughnut
@@ -694,10 +694,10 @@ export default function InteractiveCharts({ data, insights }: Props) {
         )}
 
         {charts.ordersTrend && (
-          <motion.div variants={itemVariants} className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+          <motion.div variants={itemVariants} className="card p-6  ">
             <div className="flex items-center gap-2 mb-4">
               <TrendingUp className="w-5 h-5 text-green-600" />
-              <h4 className="font-semibold text-gray-800">Orders Trend</h4>
+              <h4 className="font-semibold" style={{ color: 'var(--text-primary)' }}>Orders Trend</h4>
             </div>
             <div className="h-64">
               <Line data={charts.ordersTrend} options={chartOptions} />
@@ -706,10 +706,10 @@ export default function InteractiveCharts({ data, insights }: Props) {
         )}
 
         {charts.growth && (
-          <motion.div variants={itemVariants} className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+          <motion.div variants={itemVariants} className="card p-6  ">
             <div className="flex items-center gap-2 mb-4">
               <TrendingUp className="w-5 h-5 text-indigo-600" />
-              <h4 className="font-semibold text-gray-800">Growth Analysis</h4>
+              <h4 className="font-semibold" style={{ color: 'var(--text-primary)' }}>Growth Analysis</h4>
             </div>
             <div className="h-64">
               <Line
@@ -828,7 +828,7 @@ export default function InteractiveCharts({ data, insights }: Props) {
             return metrics.slice(0, 3).map((metric, index) => (
               <div
                 key={index}
-                className="relative overflow-hidden bg-white rounded-xl p-6 shadow-lg border border-gray-100"
+                className="relative overflow-hidden card p-6  "
               >
                 <div className={`absolute inset-0 bg-gradient-to-br ${metric.color} opacity-5`}></div>
                 <div className="relative">
@@ -836,8 +836,8 @@ export default function InteractiveCharts({ data, insights }: Props) {
                     <span className="text-2xl">{metric.icon}</span>
                     <div className={`w-2 h-2 bg-gradient-to-r ${metric.color} rounded-full`}></div>
                   </div>
-                  <h5 className="text-sm font-medium text-gray-600 mb-1">{metric.title}</h5>
-                  <p className="text-2xl font-bold text-gray-800">{metric.value}</p>
+                  <h5 className="text-sm font-medium style={{ color: 'var(--text-secondary)' }} mb-1">{metric.title}</h5>
+                  <p className="text-2xl font-bold style={{ color: 'var(--text-primary)' }}">{metric.value}</p>
                 </div>
               </div>
             ))
