@@ -5,8 +5,7 @@ import { HealthCheck } from '@/types'
 import { apiClient } from '@/lib/api'
 import Header from '@/components/Header'
 import StatusIndicator from '@/components/StatusIndicator'
-import TextQuerySection from '@/components/TextQuerySection'
-import VoiceQuerySection from '@/components/VoiceQuerySection'
+import CommandBar from '@/components/CommandBar'
 import SQLQuerySection from '@/components/SQLQuerySection'
 import ResultsSection from '@/components/ResultsSection'
 import ConnectorSidebar from '@/components/ConnectorSidebar'
@@ -74,24 +73,8 @@ export default function Dashboard() {
         </div>
 
         {/* Scrollable Content Area with proper top spacing */}
-        <div className="flex-1 overflow-y-auto pt-4">
-          <div className="container mx-auto px-4 py-8">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div>
-                <TextQuerySection
-                  onResult={setResults}
-                  onLoading={setLoading}
-                />
-              </div>
-
-              <div>
-                <VoiceQuerySection
-                  onResult={setResults}
-                  onLoading={setLoading}
-                />
-              </div>
-            </div>
-
+        <div className="flex-1 overflow-y-auto pt-4 relative">
+          <div className="container mx-auto px-4 py-8 pb-24">
             <div className="mt-8">
               <SQLQuerySection
                 onResult={setResults}
@@ -102,6 +85,14 @@ export default function Dashboard() {
             <div className="mt-8">
               <ResultsSection results={results} loading={loading} />
             </div>
+          </div>
+
+          {/* Command Bar - Fixed at bottom of content area */}
+          <div className="sticky bottom-0 left-0 right-0" style={{ background: 'var(--primary-background)' }}>
+            <CommandBar
+              onResult={setResults}
+              onLoading={setLoading}
+            />
           </div>
         </div>
       </div>

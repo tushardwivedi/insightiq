@@ -85,4 +85,217 @@
     background: var(--hover-surface);
     transition: background-color 0.2s ease;
   }
+
+  /* Command Bar Styles */
+  .command-bar-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background-color: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 8px 16px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    max-width: 800px;
+    margin: 20px auto;
+    position: relative;
+    z-index: 10;
+  }
+
+  .command-bar-container:focus-within {
+    border-color: var(--accent-color);
+    box-shadow: 0 4px 12px rgba(79, 209, 197, 0.2);
+  }
+
+  #agentic-input {
+    flex-grow: 1;
+    background: none !important;
+    border: none !important;
+    resize: none;
+    outline: none;
+    color: var(--text-primary);
+    font-size: 16px;
+    line-height: 1.5;
+    max-height: 200px;
+    overflow-y: auto;
+    font-family: 'Inter', sans-serif;
+    padding: 4px 0;
+  }
+
+  #agentic-input::placeholder {
+    color: var(--text-secondary);
+  }
+
+  #agentic-input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .icon-button {
+    background: none;
+    border: none;
+    padding: 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+  }
+
+  .icon-button:hover:not(:disabled) {
+    background: var(--hover-surface);
+    color: var(--text-primary);
+  }
+
+  .icon-button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .voice-button.recording {
+    background: var(--error-color) !important;
+    color: var(--primary-background) !important;
+  }
+
+  .send-button {
+    background: var(--accent-color);
+    color: var(--primary-background);
+    border: none;
+    padding: 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    height: 40px;
+  }
+
+  .send-button:hover:not(:disabled) {
+    background: #3BB5AB;
+    transform: translateY(-1px);
+  }
+
+  .send-button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  /* Status indicators for voice functionality */
+  .command-bar-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 8px;
+    margin: 0 auto 8px auto;
+    max-width: 800px;
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .command-bar-status.recording {
+    background: rgba(252, 129, 129, 0.1);
+    border: 1px solid var(--error-color);
+    color: var(--error-color);
+  }
+
+  .command-bar-status.recorded {
+    background: rgba(104, 211, 145, 0.1);
+    border: 1px solid var(--success-color);
+    color: var(--success-color);
+  }
+
+  .command-bar-status.processing {
+    background: rgba(79, 209, 197, 0.1);
+    border: 1px solid var(--accent-color);
+    color: var(--accent-color);
+  }
+
+  .status-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--error-color);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  .process-btn {
+    background: var(--success-color);
+    color: var(--primary-background);
+    border: none;
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .process-btn:hover:not(:disabled) {
+    background: #48BB78;
+  }
+
+  .process-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid transparent;
+    border-top: 2px solid currentColor;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  .spinner.small {
+    width: 14px;
+    height: 14px;
+  }
+
+  @keyframes spin {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+
+  .hidden {
+    display: none;
+  }
+
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .command-bar-container {
+      margin: 12px;
+      max-width: none;
+      padding: 6px 12px;
+    }
+
+    .command-bar-status {
+      margin: 0 12px 8px 12px;
+      max-width: none;
+    }
+
+    #agentic-input {
+      font-size: 16px; /* Prevent zoom on iOS */
+    }
+  }
 }
