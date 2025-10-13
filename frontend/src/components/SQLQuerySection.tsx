@@ -53,27 +53,28 @@ export default function SQLQuerySection({ onResult, onLoading }: Props) {
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+    <div className="card">
       <div className="flex items-center gap-3 mb-4">
-        <div className="p-2 bg-green-100 rounded-lg">
-          <Database className="w-5 h-5 text-green-600" />
+        <div className="p-2 rounded-lg" style={{ background: 'var(--accent-color)', color: 'var(--primary-background)' }}>
+          <Database className="w-5 h-5" />
         </div>
-        <h2 className="text-xl font-semibold text-gray-800">Custom SQL Query</h2>
+        <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Custom SQL Query</h2>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
             SQL Query
           </label>
           <textarea
             value={sql}
             onChange={(e) => setSql(e.target.value)}
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent font-mono text-sm text-gray-900 bg-white placeholder-gray-500 dark:text-gray-900 dark:bg-white dark:placeholder-gray-500"
+            className="w-full p-3 rounded-lg font-mono text-sm"
             style={{
-              color: '#111827',
-              backgroundColor: '#ffffff',
-              border: '1px solid #d1d5db'
+              background: 'var(--surface-color)',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--border-color)',
+              minHeight: '100px'
             }}
             rows={4}
             disabled={isSubmitting}
@@ -81,27 +82,28 @@ export default function SQLQuerySection({ onResult, onLoading }: Props) {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
             Analysis Question
           </label>
           <input
             type="text"
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-900 bg-white placeholder-gray-500 dark:text-gray-900 dark:bg-white dark:placeholder-gray-500"
+            className="w-full p-3 rounded-lg"
             style={{
-              color: '#111827',
-              backgroundColor: '#ffffff',
-              border: '1px solid #d1d5db'
+              background: 'var(--surface-color)',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--border-color)'
             }}
             disabled={isSubmitting}
+            placeholder="What insights can you provide from this data?"
           />
         </div>
 
         <button
           type="submit"
           disabled={!sql.trim() || !question.trim() || isSubmitting}
-          className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-green-500 to-green-600 text-white py-3 px-4 rounded-lg hover:from-green-600 hover:to-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+          className="btn-primary w-full flex items-center justify-center gap-2"
         >
           {isSubmitting ? (
             <>

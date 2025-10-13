@@ -44,25 +44,29 @@ export default function TextQuerySection({ onResult, onLoading }: Props) {
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+    <div className="card">
       <div className="flex items-center gap-3 mb-4">
-        <div className="p-2 bg-blue-100 rounded-lg">
-          <MessageSquare className="w-5 h-5 text-blue-600" />
+        <div className="p-2 rounded-lg" style={{ background: 'var(--accent-color)', color: 'var(--primary-background)' }}>
+          <MessageSquare className="w-5 h-5" />
         </div>
-        <h2 className="text-xl font-semibold text-gray-800">Text Query</h2>
+        <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Text Query</h2>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
+          <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
+            Define Your Metric
+          </label>
           <textarea
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Ask about your data... e.g., 'Show me sales trends for the last 6 months'"
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-gray-900 bg-white placeholder-gray-500 dark:text-gray-900 dark:bg-white dark:placeholder-gray-500"
+            className="w-full p-3 rounded-lg resize-none"
             style={{
-              color: '#111827',
-              backgroundColor: '#ffffff',
-              border: '1px solid #d1d5db'
+              background: 'var(--surface-color)',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--border-color)',
+              minHeight: '80px'
             }}
             rows={3}
             disabled={isSubmitting}
@@ -72,7 +76,7 @@ export default function TextQuerySection({ onResult, onLoading }: Props) {
         <button
           type="submit"
           disabled={!query.trim() || isSubmitting}
-          className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white py-3 px-4 rounded-lg hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+          className="btn-primary w-full flex items-center justify-center gap-2"
         >
           {isSubmitting ? (
             <>
@@ -88,7 +92,7 @@ export default function TextQuerySection({ onResult, onLoading }: Props) {
         </button>
       </form>
 
-      <div className="mt-4 text-sm text-gray-500">
+      <div className="mt-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
         <p className="font-medium mb-1">Example queries:</p>
         <ul className="space-y-1">
           <li>• "What are the top performing products?"</li>

@@ -119,12 +119,12 @@ export default function VoiceQuerySection({ onResult, onLoading }: Props) {
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+    <div className="card">
       <div className="flex items-center gap-3 mb-4">
-        <div className="p-2 bg-purple-100 rounded-lg">
-          <Mic className="w-5 h-5 text-purple-600" />
+        <div className="p-2 rounded-lg" style={{ background: 'var(--accent-color)', color: 'var(--primary-background)' }}>
+          <Mic className="w-5 h-5" />
         </div>
-        <h2 className="text-xl font-semibold text-gray-800">Voice Query</h2>
+        <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Voice Query</h2>
       </div>
 
       <div className="space-y-4">
@@ -132,11 +132,12 @@ export default function VoiceQuerySection({ onResult, onLoading }: Props) {
           <button
             onClick={isRecording ? stopRecording : startRecording}
             disabled={isProcessing}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg transition-all duration-200 ${
-              isRecording
-                ? 'bg-red-500 hover:bg-red-600 text-white'
-                : 'bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white'
-            } disabled:opacity-50`}
+            className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg transition-all duration-200 disabled:opacity-50"
+            style={{
+              background: isRecording ? 'var(--error-color)' : 'var(--accent-color)',
+              color: 'var(--primary-background)',
+              border: 'none'
+            }}
           >
             {isRecording ? (
               <>
@@ -154,7 +155,14 @@ export default function VoiceQuerySection({ onResult, onLoading }: Props) {
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isProcessing}
-            className="flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+            className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg disabled:opacity-50 transition-colors"
+            style={{
+              border: '1px solid var(--border-color)',
+              background: 'transparent',
+              color: 'var(--text-primary)'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--hover-surface)'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
           >
             <Upload className="w-4 h-4" />
             Upload
@@ -162,23 +170,24 @@ export default function VoiceQuerySection({ onResult, onLoading }: Props) {
         </div>
 
         {isRecording && (
-          <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-            <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-            <span className="text-red-700 font-medium">Recording... Click "Stop Recording" when done</span>
+          <div className="flex items-center gap-2 p-3 rounded-lg" style={{ background: 'rgba(252, 129, 129, 0.1)', border: '1px solid var(--error-color)' }}>
+            <div className="w-3 h-3 rounded-full animate-pulse" style={{ background: 'var(--error-color)' }}></div>
+            <span className="font-medium" style={{ color: 'var(--error-color)' }}>Recording... Click "Stop Recording" when done</span>
           </div>
         )}
 
         {recordedBlob && (
-          <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+          <div className="p-3 rounded-lg" style={{ background: 'rgba(104, 211, 145, 0.1)', border: '1px solid var(--success-color)' }}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <FileAudio className="w-4 h-4 text-green-600" />
-                <span className="text-green-700 font-medium">Audio recorded</span>
+                <FileAudio className="w-4 h-4" style={{ color: 'var(--success-color)' }} />
+                <span className="font-medium" style={{ color: 'var(--success-color)' }}>Audio recorded</span>
               </div>
               <button
                 onClick={handleRecordedAudio}
                 disabled={isProcessing}
-                className="px-3 py-1 bg-green-500 text-white rounded text-sm hover:bg-green-600 disabled:opacity-50"
+                className="px-3 py-1 rounded text-sm transition-colors disabled:opacity-50"
+                style={{ background: 'var(--success-color)', color: 'var(--primary-background)' }}
               >
                 Process
               </button>
@@ -187,9 +196,9 @@ export default function VoiceQuerySection({ onResult, onLoading }: Props) {
         )}
 
         {isProcessing && (
-          <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-            <span className="text-blue-700 font-medium">Processing audio...</span>
+          <div className="flex items-center gap-2 p-3 rounded-lg" style={{ background: 'rgba(79, 209, 197, 0.1)', border: '1px solid var(--accent-color)' }}>
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2" style={{ borderColor: 'var(--accent-color)' }}></div>
+            <span className="font-medium" style={{ color: 'var(--accent-color)' }}>Processing audio...</span>
           </div>
         )}
 
@@ -201,7 +210,7 @@ export default function VoiceQuerySection({ onResult, onLoading }: Props) {
           className="hidden"
         />
 
-        <div className="mt-4 text-sm text-gray-500">
+        <div className="mt-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
           <p className="font-medium mb-1">Voice Query Instructions:</p>
           <ul className="space-y-1">
             <li>• Click "Start Recording" and speak your query clearly</li>

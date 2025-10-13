@@ -4,27 +4,23 @@
 
 @layer base {
   :root {
-    --foreground-rgb: 0, 0, 0;
-    --background-start-rgb: 214, 219, 220;
-    --background-end-rgb: 255, 255, 255;
-  }
-
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --foreground-rgb: 255, 255, 255;
-      --background-start-rgb: 0, 0, 0;
-      --background-end-rgb: 0, 0, 0;
-    }
+    /* New Dark Theme Color Palette */
+    --primary-background: #1A202C;
+    --surface-color: #2D3748;
+    --accent-color: #4FD1C5;
+    --text-primary: #F7FAFC;
+    --text-secondary: #A0AEC0;
+    --border-color: #4A5568;
+    --hover-surface: #3A424E;
+    --error-color: #FC8181;
+    --success-color: #68D391;
+    --warning-color: #F6E05E;
   }
 
   body {
-    color: rgb(var(--foreground-rgb));
-    background: linear-gradient(
-        to bottom,
-        transparent,
-        rgb(var(--background-end-rgb))
-      )
-      rgb(var(--background-start-rgb));
+    color: var(--text-primary);
+    background: var(--primary-background);
+    font-family: 'Inter', sans-serif;
   }
 }
 
@@ -35,25 +31,58 @@
 }
 
 @layer base {
-  /* Ensure all input elements have visible black text */
+  /* Dark theme styling for form elements */
   input, textarea, select {
-    color: #111827 !important;
-    background-color: #ffffff !important;
+    color: var(--text-primary) !important;
+    background-color: var(--surface-color) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+  }
+
+  input:focus, textarea:focus, select:focus {
+    outline: none !important;
+    border-color: var(--accent-color) !important;
+    box-shadow: 0 0 0 2px rgba(79, 209, 197, 0.2) !important;
   }
 
   input::placeholder, textarea::placeholder {
-    color: #6b7280 !important;
+    color: var(--text-secondary) !important;
   }
 
-  /* Dark mode overrides for inputs */
-  @media (prefers-color-scheme: dark) {
-    input, textarea, select {
-      color: #111827 !important;
-      background-color: #ffffff !important;
-    }
+  /* Button styling */
+  .btn-primary {
+    background: var(--accent-color);
+    color: var(--primary-background);
+    border: none;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+  }
 
-    input::placeholder, textarea::placeholder {
-      color: #6b7280 !important;
-    }
+  .btn-primary:hover {
+    background: #3BB5AB;
+    transform: translateY(-1px);
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  /* Card styling */
+  .card {
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  }
+
+  .card:hover {
+    background: var(--hover-surface);
+    transition: background-color 0.2s ease;
   }
 }
