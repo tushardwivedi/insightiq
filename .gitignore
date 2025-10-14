@@ -71,3 +71,6 @@ vendor/
 
 # Docker
 .docker/
+
+# Claude AI working files
+readmeclaude.md
