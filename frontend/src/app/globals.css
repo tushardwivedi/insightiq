@@ -281,6 +281,58 @@
     display: none;
   }
 
+  /* Landing Page Styles */
+  .landing-nav {
+    background: var(--surface-color);
+    border-bottom: 1px solid var(--border-color);
+    backdrop-filter: blur(10px);
+  }
+
+  .btn-primary-large {
+    background: var(--accent-color);
+    color: var(--primary-background);
+    border: none;
+    font-weight: 600;
+    transition: all 0.2s ease;
+  }
+
+  .btn-primary-large:hover {
+    background: #3BB5AB;
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(79, 209, 197, 0.3);
+  }
+
+  .btn-primary-large:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .hero-section {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero-section::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 100%;
+    background: radial-gradient(circle at 50% 0%, rgba(79, 209, 197, 0.1) 0%, transparent 50%);
+    pointer-events: none;
+  }
+
+  .feature-card {
+    transition: all 0.3s ease;
+  }
+
+  .feature-card:hover {
+    border-color: var(--accent-color) !important;
+    box-shadow: 0 10px 30px rgba(79, 209, 197, 0.2);
+  }
+
   /* SQL Editor Component Styles */
   .sql-editor-container {
     background: var(--surface-color);
