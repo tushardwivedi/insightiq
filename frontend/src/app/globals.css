@@ -281,6 +281,192 @@
     display: none;
   }
 
+  /* SQL Editor Component Styles */
+  .sql-editor-container {
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+  }
+
+  .sql-editor-container:focus-within {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(79, 209, 197, 0.2);
+  }
+
+  .sql-editor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: var(--hover-surface);
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .sql-editor-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .sql-copy-button {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--surface-color);
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .sql-copy-button:hover {
+    background: var(--accent-color);
+    color: var(--primary-background);
+    border-color: var(--accent-color);
+    transform: translateY(-1px);
+  }
+
+  .sql-editor-wrapper {
+    position: relative;
+    min-height: 150px;
+    max-height: 400px;
+    overflow: auto;
+  }
+
+  .sql-editor-highlight {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    margin: 0;
+    padding: 16px;
+    background: #1e1e1e;
+    font-family: 'Fira Code', 'Monaco', 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    pointer-events: none;
+    color: transparent;
+  }
+
+  .sql-editor-highlight code {
+    font-family: inherit;
+    color: #d4d4d4;
+  }
+
+  .sql-editor-textarea {
+    position: relative;
+    width: 100%;
+    min-height: 150px;
+    padding: 16px;
+    margin: 0;
+    background: transparent !important;
+    border: none !important;
+    outline: none !important;
+    resize: vertical;
+    font-family: 'Fira Code', 'Monaco', 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #d4d4d4;
+    caret-color: var(--accent-color);
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    box-shadow: none !important;
+  }
+
+  .sql-editor-textarea::selection {
+    background: rgba(79, 209, 197, 0.3);
+  }
+
+  .sql-editor-textarea:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  /* Override Prism theme for SQL Editor */
+  .sql-editor-highlight .token.comment,
+  .sql-editor-highlight .token.prolog,
+  .sql-editor-highlight .token.doctype,
+  .sql-editor-highlight .token.cdata {
+    color: #6a9955;
+  }
+
+  .sql-editor-highlight .token.punctuation {
+    color: #d4d4d4;
+  }
+
+  .sql-editor-highlight .token.property,
+  .sql-editor-highlight .token.tag,
+  .sql-editor-highlight .token.boolean,
+  .sql-editor-highlight .token.number,
+  .sql-editor-highlight .token.constant,
+  .sql-editor-highlight .token.symbol,
+  .sql-editor-highlight .token.deleted {
+    color: #b5cea8;
+  }
+
+  .sql-editor-highlight .token.selector,
+  .sql-editor-highlight .token.attr-name,
+  .sql-editor-highlight .token.string,
+  .sql-editor-highlight .token.char,
+  .sql-editor-highlight .token.builtin,
+  .sql-editor-highlight .token.inserted {
+    color: #ce9178;
+  }
+
+  .sql-editor-highlight .token.operator,
+  .sql-editor-highlight .token.entity,
+  .sql-editor-highlight .token.url,
+  .sql-editor-highlight .language-css .token.string,
+  .sql-editor-highlight .style .token.string {
+    color: #d4d4d4;
+  }
+
+  .sql-editor-highlight .token.atrule,
+  .sql-editor-highlight .token.attr-value,
+  .sql-editor-highlight .token.keyword {
+    color: #569cd6;
+  }
+
+  .sql-editor-highlight .token.function,
+  .sql-editor-highlight .token.class-name {
+    color: #dcdcaa;
+  }
+
+  .sql-editor-highlight .token.regex,
+  .sql-editor-highlight .token.important,
+  .sql-editor-highlight .token.variable {
+    color: #d16969;
+  }
+
+  /* Scrollbar styling for SQL editor */
+  .sql-editor-wrapper::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .sql-editor-wrapper::-webkit-scrollbar-track {
+    background: #2d2d2d;
+    border-radius: 4px;
+  }
+
+  .sql-editor-wrapper::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+  }
+
+  .sql-editor-wrapper::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-color);
+  }
+
   /* Responsive adjustments */
   @media (max-width: 768px) {
     .command-bar-container {
@@ -296,6 +482,28 @@
 
     #agentic-input {
       font-size: 16px; /* Prevent zoom on iOS */
+    }
+
+    .sql-editor-header {
+      padding: 10px 12px;
+    }
+
+    .sql-editor-label {
+      font-size: 13px;
+    }
+
+    .sql-copy-button span {
+      display: none;
+    }
+
+    .sql-copy-button {
+      padding: 6px 8px;
+    }
+
+    .sql-editor-highlight,
+    .sql-editor-textarea {
+      padding: 12px;
+      font-size: 12px;
     }
   }
 }

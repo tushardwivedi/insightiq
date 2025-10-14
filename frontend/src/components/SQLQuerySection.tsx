@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Database, Play } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { AnalyticsResponse } from '@/types'
+import SQLEditor from './SQLEditor'
 
 interface Props {
   onResult: (result: AnalyticsResponse) => void
@@ -63,20 +64,9 @@ export default function SQLQuerySection({ onResult, onLoading }: Props) {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
-            SQL Query
-          </label>
-          <textarea
+          <SQLEditor
             value={sql}
-            onChange={(e) => setSql(e.target.value)}
-            className="w-full p-3 rounded-lg font-mono text-sm"
-            style={{
-              background: 'var(--surface-color)',
-              color: 'var(--text-primary)',
-              border: '1px solid var(--border-color)',
-              minHeight: '100px'
-            }}
-            rows={4}
+            onChange={setSql}
             disabled={isSubmitting}
           />
         </div>
