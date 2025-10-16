@@ -16,7 +16,9 @@
     "lucide-react": "^0.454.0",
     "chart.js": "^4.4.4",
     "react-chartjs-2": "^5.2.0",
-    "framer-motion": "^11.9.0"
+    "framer-motion": "^11.9.0",
+    "supertokens-auth-react": "^0.49.0",
+    "supertokens-web-js": "^0.15.0"
   },
   "devDependencies": {
     "typescript": "^5",

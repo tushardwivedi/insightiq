@@ -14,10 +14,13 @@ import (
 	_ "github.com/lib/pq"
 
 	"insightiq/backend/internal/agent"
+	"insightiq/backend/internal/auth"
+	"insightiq/backend/internal/cache"
 	"insightiq/backend/internal/connectors"
 	"insightiq/backend/internal/embedding"
 	httpserver "insightiq/backend/internal/http" // Fixed: Use alias to avoid conflict
 	"insightiq/backend/internal/intent"
+	"insightiq/backend/internal/models"
 	"insightiq/backend/internal/repository"
 	"insightiq/backend/internal/schema"
 	"insightiq/backend/internal/services"
@@ -108,6 +111,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Initialize Redis cache (optional - will continue without it if unavailable)
+	var redisCache *cache.RedisCache
+	redisURL := getEnvOrDefault("REDIS_URL", "redis://redis:6379")
+	redisCache, err = cache.NewRedisCache(redisURL, logger)
+	if err != nil {
+		logger.Warn("Redis cache unavailable, continuing without caching", "error", err)
+		redisCache = nil
+	}
+
 	// Initialize connector repository and service
 	connectorRepo := repository.NewConnectorRepository(db)
 
@@ -118,6 +130,45 @@ func main() {
 	}
 
 	connectorService := services.NewConnectorService(connectorRepo, logger)
+
+	// Initialize authentication
+	userRepo := repository.NewUserRepository(db)
+
+	// Create user tables if they don't exist
+	if err := userRepo.CreateTables(ctx); err != nil {
+		logger.Error("Failed to create user tables", "error", err)
+		os.Exit(1)
+	}
+
+	// Initialize JWT manager with secret key and token duration
+	jwtSecret := getEnvOrDefault("JWT_SECRET", "insightiq-secret-key-change-in-production")
+	jwtManager := auth.NewJWTManager(jwtSecret, 24*time.Hour) // 24 hour token expiration
+
+	// Initialize auth service
+	authService := services.NewAuthService(userRepo, jwtManager, logger)
+
+	// Create initial admin user if it doesn't exist
+	go func() {
+		adminEmail := getEnvOrDefault("ADMIN_EMAIL", "admin@insightiq.local")
+		adminPassword := getEnvOrDefault("ADMIN_PASSWORD", "admin123456")
+		adminName := getEnvOrDefault("ADMIN_NAME", "Admin User")
+
+		_, err := userRepo.GetByEmail(ctx, adminEmail)
+		if err == repository.ErrUserNotFound {
+			// Admin user doesn't exist, create it
+			_, err := authService.Register(ctx, models.CreateUserRequest{
+				Email:    adminEmail,
+				Password: adminPassword,
+				Name:     adminName,
+				Role:     "admin",
+			})
+			if err != nil {
+				logger.Error("Failed to create initial admin user", "error", err)
+			} else {
+				logger.Info("Initial admin user created", "email", adminEmail)
+			}
+		}
+	}()
 
 	// Initialize RAG infrastructure
 	qdrantURL := getEnvOrDefault("QDRANT_URL", "http://qdrant:6333")
@@ -195,13 +246,19 @@ func main() {
 
 	// Initialize services with enhanced analytics and RAG intent classification
 	analyticsService := services.NewAnalyticsServiceWithRAG(agentManager, enhancedAnalyticsService, connectorService, ollamaConn, intentService, logger)
+
+	// Set Redis cache if available
+	if redisCache != nil {
+		analyticsService.SetCache(redisCache)
+	}
+
 	voiceService := services.NewVoiceService(agentManager, logger)
 
 	// Create planner service
 	plannerService := services.NewPlannerService(ollamaConn, connectorService, logger)
 
 	// Create HTTP server
-	httpServer := httpserver.NewServer(analyticsService, voiceService, connectorService, plannerService, logger) // Fixed: Use alias
+	httpServer := httpserver.NewServer(analyticsService, voiceService, connectorService, plannerService, authService, logger) // Fixed: Use alias
 
 	server := &http.Server{
 		Addr:              getEnvOrDefault("PORT", ":8080"),

@@ -2,9 +2,13 @@
 package http
 
 import (
+	"context"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
+
+	"insightiq/backend/internal/services"
 )
 
 func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
@@ -44,7 +48,7 @@ func (s *Server) corsMiddleware(next http.Handler) http.Handler {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 		}
 
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 		w.Header().Set("Access-Control-Max-Age", "3600")
@@ -129,4 +133,111 @@ func (s *Server) rateLimitMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+// AuthMiddleware validates JWT tokens and adds user context
+func (s *Server) authMiddleware(authService *services.AuthService) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Extract token from Authorization header
+			authHeader := r.Header.Get("Authorization")
+			if authHeader == "" {
+				http.Error(w, "Authorization header required", http.StatusUnauthorized)
+				return
+			}
+
+			parts := strings.Split(authHeader, " ")
+			if len(parts) != 2 || parts[0] != "Bearer" {
+				http.Error(w, "Invalid authorization header format", http.StatusUnauthorized)
+				return
+			}
+
+			token := parts[1]
+
+			// Validate token
+			claims, err := authService.ValidateToken(token)
+			if err != nil {
+				s.logger.Warn("Invalid token", "error", err)
+				http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
+				return
+			}
+
+			// Add user information to context
+			ctx := context.WithValue(r.Context(), "user_id", claims.UserID)
+			ctx = context.WithValue(ctx, "user_email", claims.Email)
+			ctx = context.WithValue(ctx, "user_role", claims.Role)
+
+			// Call next handler with updated context
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+// OptionalAuthMiddleware adds user context if token is present but doesn't require it
+func (s *Server) optionalAuthMiddleware(authService *services.AuthService) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Extract token from Authorization header
+			authHeader := r.Header.Get("Authorization")
+			if authHeader == "" {
+				// No token, continue without auth context
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			parts := strings.Split(authHeader, " ")
+			if len(parts) != 2 || parts[0] != "Bearer" {
+				// Invalid format, continue without auth context
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			token := parts[1]
+
+			// Validate token
+			claims, err := authService.ValidateToken(token)
+			if err != nil {
+				// Invalid token, continue without auth context
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			// Add user information to context
+			ctx := context.WithValue(r.Context(), "user_id", claims.UserID)
+			ctx = context.WithValue(ctx, "user_email", claims.Email)
+			ctx = context.WithValue(ctx, "user_role", claims.Role)
+
+			// Call next handler with updated context
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+// RoleMiddleware checks if user has required role
+func (s *Server) roleMiddleware(allowedRoles ...string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			userRole, ok := r.Context().Value("user_role").(string)
+			if !ok {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+
+			// Check if user role is in allowed roles
+			allowed := false
+			for _, role := range allowedRoles {
+				if userRole == role {
+					allowed = true
+					break
+				}
+			}
+
+			if !allowed {
+				http.Error(w, "Forbidden: insufficient permissions", http.StatusForbidden)
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
 }

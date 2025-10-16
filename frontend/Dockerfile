@@ -16,11 +16,8 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies with exact versions
-RUN npm ci --only=production --audit fix
-
-# Install dev dependencies for build
-RUN npm ci
+# Install dependencies
+RUN npm install --legacy-peer-deps
 
 # Copy the rest of your application files
 COPY . .

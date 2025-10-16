@@ -65,6 +65,42 @@ services:
       - backend-network
     restart: unless-stopped
 
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    networks:
+      - backend-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # SuperTokens Core
+  supertokens:
+    image: registry.supertokens.io/supertokens/supertokens-postgresql:9.2
+    depends_on:
+      - postgres
+    ports:
+      - "127.0.0.1:3567:3567"
+    environment:
+      POSTGRESQL_CONNECTION_URI: "postgresql://insightiq_user:${POSTGRES_PASSWORD:-insightiq_password}@postgres:5432/insightiq"
+      API_KEYS: ${SUPERTOKENS_API_KEY:-your_supertokens_api_key_change_in_production}
+    networks:
+      - backend-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3567/hello || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # Go Backend
   agent:
     build:
@@ -81,11 +117,16 @@ services:
       - ollama
       - whisper
       - qdrant
+      - redis
+      - supertokens
     environment:
       - OLLAMA_URL=${OLLAMA_URL:-http://ollama:11434}
       - WHISPER_URL=${WHISPER_URL:-http://whisper:9000}
       - QDRANT_URL=${QDRANT_URL:-http://qdrant:6333}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
       - POSTGRES_URL=${POSTGRES_URL:-postgres://insightiq_user:insightiq_password@postgres:5432/insightiq?sslmode=disable}
+      - SUPERTOKENS_CONNECTION_URI=${SUPERTOKENS_CONNECTION_URI:-http://supertokens:3567}
+      - SUPERTOKENS_API_KEY=${SUPERTOKENS_API_KEY:-your_supertokens_api_key_change_in_production}
     networks:
       - backend-network
     restart: unless-stopped
@@ -126,3 +167,4 @@ volumes:
   ollama_data:
   whisper_models:
   qdrant_data:
+  redis_data:

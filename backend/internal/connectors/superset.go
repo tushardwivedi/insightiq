@@ -3,12 +3,16 @@ package connectors
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
+
+	"insightiq/backend/internal/cache"
 )
 
 type SuperSetConnector struct {
@@ -18,6 +22,7 @@ type SuperSetConnector struct {
 	token    string
 	client   *http.Client
 	logger   *slog.Logger
+	cache    *cache.RedisCache // Optional cache
 }
 
 type SuperSetQuery struct {
@@ -55,6 +60,22 @@ func NewSuperSetConnectorWithToken(baseURL, token string, logger *slog.Logger) *
 		},
 		logger: logger.With("connector", "superset"),
 	}
+}
+
+// SetCache sets the Redis cache for this connector
+func (sc *SuperSetConnector) SetCache(cache *cache.RedisCache) {
+	sc.cache = cache
+	sc.logger.Info("✅ Redis cache enabled for Superset connector")
+}
+
+// generateCacheKey creates a cache key from query components
+func generateCacheKey(prefix string, components ...string) string {
+	h := sha256.New()
+	h.Write([]byte(prefix))
+	for _, comp := range components {
+		h.Write([]byte(comp))
+	}
+	return prefix + ":" + hex.EncodeToString(h.Sum(nil))[:16]
 }
 
 func (sc *SuperSetConnector) Authenticate(ctx context.Context) error {
@@ -109,6 +130,18 @@ func (sc *SuperSetConnector) Authenticate(ctx context.Context) error {
 }
 
 func (sc *SuperSetConnector) ExecuteSQL(ctx context.Context, sql string) (*SuperSetResponse, error) {
+	// Try cache first if available (TTL: 5 minutes for query results)
+	cacheKey := generateCacheKey("superset:query", sc.baseURL, sql)
+	if sc.cache != nil {
+		var cachedResult SuperSetResponse
+		err := sc.cache.GetJSON(ctx, cacheKey, &cachedResult)
+		if err == nil && len(cachedResult.Data) > 0 {
+			sc.logger.Debug("✅ Cache hit: query result", "rows", len(cachedResult.Data))
+			return &cachedResult, nil
+		}
+		sc.logger.Debug("Cache miss: query")
+	}
+
 	if sc.token == "" {
 		if err := sc.Authenticate(ctx); err != nil {
 			return nil, err
@@ -144,10 +177,254 @@ func (sc *SuperSetConnector) ExecuteSQL(ctx context.Context, sql string) (*Super
 		return nil, err
 	}
 
+	// Store in cache if available (TTL: 5 minutes)
+	if sc.cache != nil && len(result.Data) > 0 {
+		err := sc.cache.Set(ctx, cacheKey, result, 5*time.Minute)
+		if err != nil {
+			sc.logger.Warn("Failed to cache query result", "error", err)
+		} else {
+			sc.logger.Debug("✅ Cached query result", "rows", len(result.Data), "ttl", "5m")
+		}
+	}
+
 	return &result, nil
 }
 
+// extractKeywords extracts meaningful keywords from a user query
+func extractKeywords(query string) []string {
+	// Remove common stop words
+	stopWords := map[string]bool{
+		"give": true, "me": true, "the": true, "a": true, "an": true,
+		"from": true, "on": true, "in": true, "of": true, "to": true,
+		"show": true, "get": true, "find": true, "what": true, "how": true,
+		"is": true, "are": true, "was": true, "were": true, "be": true,
+		"have": true, "has": true, "had": true, "do": true, "does": true,
+		"did": true, "will": true, "would": true, "should": true, "could": true,
+		"data": true, "s": true, // 's' from possessives like "Bank's"
+	}
+
+	// Clean and split query
+	words := strings.Fields(strings.ToLower(query))
+	var keywords []string
+
+	for _, word := range words {
+		// Remove punctuation
+		word = strings.Trim(word, ".,!?;:'\"")
+
+		// Skip stop words and short words
+		if !stopWords[word] && len(word) > 2 {
+			keywords = append(keywords, word)
+		}
+	}
+
+	return keywords
+}
+
+// findBestMatchingDashboard scores dashboards by keyword matches and returns the best match
+func findBestMatchingDashboard(dashboards []map[string]interface{}, keywords []string) (map[string]interface{}, int) {
+	var bestMatch map[string]interface{}
+	maxScore := 0
+
+	for _, dash := range dashboards {
+		score := 0
+
+		// Extract dashboard name and title
+		dashName := ""
+		if name, ok := dash["dashboard_title"].(string); ok {
+			dashName = strings.ToLower(name)
+		} else if name, ok := dash["title"].(string); ok {
+			dashName = strings.ToLower(name)
+		}
+
+		// Score based on keyword matches
+		for _, keyword := range keywords {
+			if strings.Contains(dashName, keyword) {
+				score += 2 // Higher weight for exact matches
+			}
+			// Check for partial matches (e.g., "world" matches "worldwide")
+			for _, dashWord := range strings.Fields(dashName) {
+				if strings.Contains(dashWord, keyword) || strings.Contains(keyword, dashWord) {
+					score++
+				}
+			}
+		}
+
+		if score > maxScore {
+			maxScore = score
+			bestMatch = dash
+		}
+	}
+
+	return bestMatch, maxScore
+}
+
+// FindRelevantDataset searches for a dataset/dashboard based on query keywords
+func (sc *SuperSetConnector) FindRelevantDataset(ctx context.Context, query string) (map[string]interface{}, error) {
+	// Extract keywords from query
+	keywords := extractKeywords(query)
+	sc.logger.Info("Extracted keywords from query", "keywords", keywords)
+
+	if len(keywords) == 0 {
+		return nil, fmt.Errorf("no meaningful keywords found in query")
+	}
+
+	// Get all available dashboards
+	dashboards, err := sc.GetDashboards(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get dashboards: %w", err)
+	}
+
+	sc.logger.Info("Retrieved dashboards", "count", len(dashboards))
+
+	// Find best matching dashboard
+	bestMatch, score := findBestMatchingDashboard(dashboards, keywords)
+
+	if bestMatch == nil || score == 0 {
+		return nil, fmt.Errorf("no matching dashboard found for keywords: %v", keywords)
+	}
+
+	sc.logger.Info("Found matching dashboard",
+		"dashboard", bestMatch["dashboard_title"],
+		"score", score,
+		"id", bestMatch["id"])
+
+	return bestMatch, nil
+}
+
+// QueryDashboardData retrieves data from a dashboard by querying its datasets
+func (sc *SuperSetConnector) QueryDashboardData(ctx context.Context, dashboardID int, query string) (*SuperSetResponse, error) {
+	sc.logger.Info("Querying dashboard data", "dashboard_id", dashboardID)
+
+	// Get dashboard details to find associated datasets
+	dashboard, err := sc.GetDashboards(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get dashboards: %w", err)
+	}
+
+	// Find the specific dashboard
+	var targetDashboard map[string]interface{}
+	for _, dash := range dashboard {
+		if id, ok := dash["id"].(float64); ok && int(id) == dashboardID {
+			targetDashboard = dash
+			break
+		}
+	}
+
+	if targetDashboard == nil {
+		return nil, fmt.Errorf("dashboard %d not found", dashboardID)
+	}
+
+	// Try to get data from dashboard charts
+	data, err := sc.GetDashboardData(ctx, dashboardID)
+	if err != nil {
+		sc.logger.Warn("Failed to get dashboard chart data", "dashboard_id", dashboardID, "error", err)
+	}
+
+	if len(data) > 0 {
+		sc.logger.Info("✅ Retrieved data from dashboard charts", "rows", len(data))
+		return &SuperSetResponse{
+			Data:   data,
+			Status: "success",
+		}, nil
+	}
+
+	// Fallback: Use generic SQL to explore the database
+	sc.logger.Warn("No data from dashboard charts, using generic discovery query")
+
+	// Try to discover what tables are available
+	discoverSQL := `
+	SELECT
+		table_name,
+		column_name,
+		data_type
+	FROM information_schema.columns
+	WHERE table_schema = 'public'
+		AND table_name NOT LIKE 'pg_%'
+		AND table_name NOT LIKE 'sql_%'
+	ORDER BY table_name, ordinal_position
+	LIMIT 100
+	`
+
+	result, err := sc.ExecuteSQL(ctx, discoverSQL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to discover database schema: %w", err)
+	}
+
+	if len(result.Data) > 0 {
+		// Return table information so user knows what's available
+		sc.logger.Info("Returning database schema information", "tables_found", len(result.Data))
+		return &SuperSetResponse{
+			Data: []map[string]interface{}{
+				{
+					"message": fmt.Sprintf("Found World Bank dashboard but no data available from charts. Discovered %d tables/columns in the database. Please check the dashboard configuration in Superset.", len(result.Data)),
+					"schema_info": result.Data,
+				},
+			},
+			Status: "partial",
+		}, nil
+	}
+
+	return &SuperSetResponse{
+		Data: []map[string]interface{}{
+			{
+				"error": "World Bank dashboard found but contains no accessible data. The dashboard may need to be configured with datasets in Superset.",
+				"dashboard_id": dashboardID,
+			},
+		},
+		Status: "error",
+	}, nil
+}
+
+// generateDashboardSQL generates appropriate SQL based on dashboard context
+func (sc *SuperSetConnector) generateDashboardSQL(dashboardTitle, query string) string {
+	// For World Bank / Health dashboards
+	if strings.Contains(dashboardTitle, "world") || strings.Contains(dashboardTitle, "health") {
+		return `
+		SELECT
+			country_name,
+			country_code,
+			year,
+			sp_pop_totl as population,
+			sh_dyn_mort as mortality_rate,
+			sp_dyn_le00_in as life_expectancy,
+			sh_xpd_chex_pc_cd as health_expenditure_per_capita
+		FROM wb_health_population
+		WHERE year >= 2015
+		ORDER BY year DESC, country_name
+		LIMIT 100
+		`
+	}
+
+	// For bike/vehicle sales dashboards
+	if strings.Contains(dashboardTitle, "bike") || strings.Contains(dashboardTitle, "vehicle") ||
+		strings.Contains(dashboardTitle, "sales") {
+		return `
+		SELECT
+			quarter,
+			bike_category,
+			total_revenue,
+			total_bikes_sold
+		FROM bike_sales
+		ORDER BY quarter, bike_category
+		LIMIT 100
+		`
+	}
+
+	// Generic query - try to discover tables
+	return `
+	SELECT table_name, column_name, data_type
+	FROM information_schema.columns
+	WHERE table_schema = 'public'
+	AND table_name NOT LIKE 'pg_%'
+	ORDER BY table_name, ordinal_position
+	LIMIT 50
+	`
+}
+
+// DEPRECATED: Use FindRelevantDataset and query actual data instead
+// This method always returns bike_sales data and should not be used
 func (sc *SuperSetConnector) GetSampleData(ctx context.Context) (*SuperSetResponse, error) {
+	sc.logger.Warn("⚠️  GetSampleData() is DEPRECATED - returns hardcoded bike_sales data")
 	sql := `
     SELECT
         quarter,
@@ -200,6 +477,18 @@ func (sc *SuperSetConnector) GetDatasets(ctx context.Context) ([]map[string]inte
 
 // GetDashboards retrieves all dashboards from Superset
 func (sc *SuperSetConnector) GetDashboards(ctx context.Context) ([]map[string]interface{}, error) {
+	// Try cache first if available
+	cacheKey := generateCacheKey("superset:dashboards", sc.baseURL)
+	if sc.cache != nil {
+		var cachedDashboards []map[string]interface{}
+		err := sc.cache.GetJSON(ctx, cacheKey, &cachedDashboards)
+		if err == nil && len(cachedDashboards) > 0 {
+			sc.logger.Debug("✅ Cache hit: dashboards", "count", len(cachedDashboards))
+			return cachedDashboards, nil
+		}
+		sc.logger.Debug("Cache miss: dashboards")
+	}
+
 	if sc.token == "" {
 		if err := sc.Authenticate(ctx); err != nil {
 			return nil, err
@@ -230,6 +519,16 @@ func (sc *SuperSetConnector) GetDashboards(ctx context.Context) ([]map[string]in
 
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("failed to parse dashboards response: %w", err)
+	}
+
+	// Store in cache if available (TTL: 10 minutes)
+	if sc.cache != nil && len(result.Result) > 0 {
+		err := sc.cache.Set(ctx, cacheKey, result.Result, 10*time.Minute)
+		if err != nil {
+			sc.logger.Warn("Failed to cache dashboards", "error", err)
+		} else {
+			sc.logger.Debug("✅ Cached dashboards", "count", len(result.Result), "ttl", "10m")
+		}
 	}
 
 	return result.Result, nil

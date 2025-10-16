@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"insightiq/backend/internal/agent"
+	"insightiq/backend/internal/cache"
 	"insightiq/backend/internal/connectors"
 	"insightiq/backend/internal/intent"
 	"insightiq/backend/internal/models"
@@ -22,6 +23,7 @@ type AnalyticsService struct {
 	connectorService     *ConnectorService
 	llmConn             *connectors.OllamaConnector
 	intentService        *intent.ClassificationService
+	cache                *cache.RedisCache
 	logger               *slog.Logger
 }
 
@@ -63,6 +65,12 @@ func NewAnalyticsServiceWithRAG(agentManager *agent.Manager, enhancedAnalytics *
 		intentService:     intentService,
 		logger:            logger.With("service", "analytics"),
 	}
+}
+
+// SetCache sets the Redis cache for this service and passes it to connectors
+func (as *AnalyticsService) SetCache(cache *cache.RedisCache) {
+	as.cache = cache
+	as.logger.Info("✅ Redis cache enabled for Analytics service")
 }
 
 func (as *AnalyticsService) ProcessQuery(ctx context.Context, query string) (*AnalyticsResponse, error) {
@@ -429,25 +437,51 @@ func (as *AnalyticsService) querySupersetConnector(ctx context.Context, connecto
 		supersetConn = connectors.NewSuperSetConnector(url, username, password, as.logger)
 	}
 
+	// Set cache if available
+	if as.cache != nil {
+		supersetConn.SetCache(as.cache)
+	}
+
 	// Test connection first
 	if err := supersetConn.TestConnection(ctx); err != nil {
 		return nil, fmt.Errorf("connection test failed: %w", err)
 	}
 
-	// Use our improved query method
-	as.logger.Info("Executing Superset query", "generated_sql", "query-specific")
-	result, err := supersetConn.QueryDataset(ctx, query)
+	// Try to find relevant dataset based on query
+	as.logger.Info("🔍 Attempting to find relevant dataset for query", "query", query)
+	dashboard, err := supersetConn.FindRelevantDataset(ctx, query)
+
 	if err != nil {
-		as.logger.Warn("Query-specific data failed, trying sample data", "error", err)
-		// Try sample data as fallback
-		result, err = supersetConn.GetSampleData(ctx)
+		as.logger.Warn("❌ No matching dashboard found, trying QueryDataset fallback", "error", err)
+		// Fallback to QueryDataset which has its own heuristics
+		result, err := supersetConn.QueryDataset(ctx, query)
 		if err != nil {
-			return nil, fmt.Errorf("both query and sample data failed: %w", err)
+			return nil, fmt.Errorf("no matching dataset found and query failed: %w. Available dashboards may not match query keywords.", err)
 		}
-		as.logger.Info("Using sample data as fallback")
+		as.logger.Info("✅ Query executed using fallback method", "rows", len(result.Data))
+		return result.Data, nil
 	}
 
-	as.logger.Info("Superset query executed successfully", "rows", len(result.Data))
+	// Extract dashboard ID
+	dashboardID := 0
+	if id, ok := dashboard["id"].(float64); ok {
+		dashboardID = int(id)
+	}
+
+	dashTitle := ""
+	if title, ok := dashboard["dashboard_title"].(string); ok {
+		dashTitle = title
+	}
+
+	as.logger.Info("✅ Found matching dashboard", "dashboard", dashTitle, "id", dashboardID)
+
+	// Query data from the discovered dashboard
+	result, err := supersetConn.QueryDashboardData(ctx, dashboardID, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query dashboard '%s' (id: %d): %w", dashTitle, dashboardID, err)
+	}
+
+	as.logger.Info("✅ Superset query executed successfully", "dashboard", dashTitle, "rows", len(result.Data))
 	return result.Data, nil
 }
 

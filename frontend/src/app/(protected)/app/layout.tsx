@@ -7,6 +7,7 @@ import StatusIndicator from '@/components/StatusIndicator'
 import ConnectorSidebar from '@/components/ConnectorSidebar'
 import { apiClient } from '@/lib/api'
 import { HealthCheck } from '@/types'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function AppLayout({
   children,
@@ -14,16 +15,23 @@ export default function AppLayout({
   children: React.ReactNode
 }) {
   const router = useRouter()
+  const { isAuthenticated, isLoading } = useAuth()
   const [health, setHealth] = useState<HealthCheck | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   useEffect(() => {
-    // TODO: Add authentication check in Phase 3
-    // For now, just check health
-    checkHealth()
-    const interval = setInterval(checkHealth, 30000)
-    return () => clearInterval(interval)
-  }, [])
+    // Check authentication
+    if (!isLoading && !isAuthenticated) {
+      router.push('/login')
+      return
+    }
+
+    if (isAuthenticated) {
+      checkHealth()
+      const interval = setInterval(checkHealth, 30000)
+      return () => clearInterval(interval)
+    }
+  }, [isAuthenticated, isLoading, router])
 
   const checkHealth = async () => {
     try {
@@ -32,6 +40,23 @@ export default function AppLayout({
     } catch (error) {
       console.error('Health check failed:', error)
     }
+  }
+
+  // Show loading state while checking authentication
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--primary-background)' }}>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4" style={{ borderColor: 'var(--accent-color)' }}></div>
+          <p style={{ color: 'var(--text-secondary)' }}>Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Don't render protected content if not authenticated
+  if (!isAuthenticated) {
+    return null
   }
 
   return (

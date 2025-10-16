@@ -248,22 +248,43 @@ func (eas *EnhancedAnalyticsService) fetchFromSuperset(ctx context.Context, conn
 		return nil, fmt.Errorf("superset connection failed: %w", err)
 	}
 
-	eas.logger.Info("Fetching data from Superset based on user query", "query", query)
+	eas.logger.Info("🔍 Fetching data from Superset based on user query", "query", query)
 
-	// Use query-specific data retrieval instead of hardcoded sample data
-	result, err := supersetConn.QueryDataset(ctx, query)
+	// Try to find relevant dataset based on query
+	dashboard, err := supersetConn.FindRelevantDataset(ctx, query)
 	if err != nil {
-		eas.logger.Error("Query-specific data failed", "error", err, "query", query)
-		// Fallback to sample data if query-specific fails
-		result, err = supersetConn.GetSampleData(ctx)
+		eas.logger.Warn("❌ No matching dashboard found, trying QueryDataset fallback", "error", err)
+		// Fallback to QueryDataset which has its own heuristics
+		result, err := supersetConn.QueryDataset(ctx, query)
 		if err != nil {
-			eas.logger.Error("Sample data also failed", "error", err)
-			return nil, fmt.Errorf("failed to get data from Superset: %w", err)
+			eas.logger.Error("Query failed", "error", err)
+			return nil, fmt.Errorf("no matching dataset found and query failed: %w. Available dashboards may not match query keywords.", err)
 		}
-		eas.logger.Info("Using sample data as fallback", "rows", len(result.Data))
+		eas.logger.Info("✅ Query executed using fallback method", "rows", len(result.Data))
+		return result.Data, nil
 	}
 
-	eas.logger.Info("Successfully retrieved data from Superset", "rows", len(result.Data))
+	// Extract dashboard ID and title
+	dashboardID := 0
+	if id, ok := dashboard["id"].(float64); ok {
+		dashboardID = int(id)
+	}
+
+	dashTitle := ""
+	if title, ok := dashboard["dashboard_title"].(string); ok {
+		dashTitle = title
+	}
+
+	eas.logger.Info("✅ Found matching dashboard", "dashboard", dashTitle, "id", dashboardID)
+
+	// Query data from the discovered dashboard
+	result, err := supersetConn.QueryDashboardData(ctx, dashboardID, query)
+	if err != nil {
+		eas.logger.Error("Failed to query dashboard", "dashboard", dashTitle, "error", err)
+		return nil, fmt.Errorf("failed to query dashboard '%s' (id: %d): %w", dashTitle, dashboardID, err)
+	}
+
+	eas.logger.Info("✅ Successfully retrieved data from Superset", "dashboard", dashTitle, "rows", len(result.Data))
 	return result.Data, nil
 }
 
