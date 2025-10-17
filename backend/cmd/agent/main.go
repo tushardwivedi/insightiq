@@ -147,6 +147,15 @@ func main() {
 	// Initialize auth service
 	authService := services.NewAuthService(userRepo, jwtManager, logger)
 
+	// Initialize query history repository
+	queryHistoryRepo := repository.NewQueryHistoryRepository(db)
+
+	// Create query history tables if they don't exist
+	if err := queryHistoryRepo.CreateTables(ctx); err != nil {
+		logger.Error("Failed to create query history tables", "error", err)
+		os.Exit(1)
+	}
+
 	// Create initial admin user if it doesn't exist
 	go func() {
 		adminEmail := getEnvOrDefault("ADMIN_EMAIL", "admin@insightiq.local")
@@ -257,8 +266,8 @@ func main() {
 	// Create planner service
 	plannerService := services.NewPlannerService(ollamaConn, connectorService, logger)
 
-	// Create HTTP server
-	httpServer := httpserver.NewServer(analyticsService, voiceService, connectorService, plannerService, authService, logger) // Fixed: Use alias
+	// Create HTTP server with query history
+	httpServer := httpserver.NewServer(analyticsService, voiceService, connectorService, plannerService, authService, queryHistoryRepo, logger) // Fixed: Use alias
 
 	server := &http.Server{
 		Addr:              getEnvOrDefault("PORT", ":8080"),

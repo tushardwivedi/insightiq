@@ -12,22 +12,24 @@ import (
 )
 
 type Server struct {
-	analyticsService *services.AnalyticsService
-	voiceService     *services.VoiceService
-	connectorService *services.ConnectorService
-	plannerService   *services.PlannerService
-	authService      *services.AuthService
-	logger           *slog.Logger
-	mux              *http.ServeMux
+	analyticsService  *services.AnalyticsService
+	voiceService      *services.VoiceService
+	connectorService  *services.ConnectorService
+	plannerService    *services.PlannerService
+	authService       *services.AuthService
+	queryHistoryRepo  interface{} // repository.QueryHistoryRepository
+	logger            *slog.Logger
+	mux               *http.ServeMux
 }
 
-func NewServer(analytics *services.AnalyticsService, voice *services.VoiceService, connector *services.ConnectorService, planner *services.PlannerService, auth *services.AuthService, logger *slog.Logger) *Server {
+func NewServer(analytics *services.AnalyticsService, voice *services.VoiceService, connector *services.ConnectorService, planner *services.PlannerService, auth *services.AuthService, queryHistoryRepo interface{}, logger *slog.Logger) *Server {
 	s := &Server{
 		analyticsService: analytics,
 		voiceService:     voice,
 		connectorService: connector,
 		plannerService:   planner,
 		authService:      auth,
+		queryHistoryRepo: queryHistoryRepo,
 		logger:           logger,
 		mux:              http.NewServeMux(),
 	}
@@ -92,6 +94,13 @@ func (s *Server) setupRoutes() {
 		plannerHandlers := NewPlannerHandlers(s.plannerService, s)
 		s.mux.HandleFunc("/api/planner/parse-intent", s.withAuth(plannerHandlers.handleParseIntent))
 		s.mux.HandleFunc("/api/planner/analyze-query", s.withAuth(plannerHandlers.handleAnalyzeQuery))
+	}
+
+	// Protected query history routes
+	if s.queryHistoryRepo != nil {
+		// Import needed in handler
+		s.mux.HandleFunc("/api/query-history", s.withAuth(s.handleQueryHistory))
+		s.mux.HandleFunc("/api/query-history/stats", s.withAuth(s.handleQueryHistoryStats))
 	}
 }
 
