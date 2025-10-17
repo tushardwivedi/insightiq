@@ -466,6 +466,141 @@ export default function InteractiveCharts({ data, insights }: Props) {
       }
     }
 
+    // GENERIC FALLBACK: If no specific patterns matched, create generic visualizations
+    if (Object.keys(charts).length === 0 && data.length > 0) {
+      console.log('No specific pattern matched, generating generic charts')
+
+      const firstRow = data[0]
+      const allKeys = Object.keys(firstRow)
+
+      // Find numeric and string columns
+      const numericCols: string[] = []
+      const stringCols: string[] = []
+
+      allKeys.forEach(key => {
+        const sampleValue = firstRow[key]
+        if (typeof sampleValue === 'number' || !isNaN(Number(sampleValue))) {
+          numericCols.push(key)
+        } else {
+          stringCols.push(key)
+        }
+      })
+
+      console.log('Detected columns:', { numericCols, stringCols })
+
+      // If we have both categorical and numeric data, create charts
+      if (stringCols.length > 0 && numericCols.length > 0) {
+        const categoricalKey = stringCols[0] // Use first string column as category
+        const numericKey = numericCols[0] // Use first numeric column as value
+
+        // Aggregate data by category
+        const aggregatedData = data.reduce((acc: any, item) => {
+          const category = String(item[categoricalKey] || 'Unknown')
+          const value = Number(item[numericKey]) || 0
+          if (!acc[category]) acc[category] = 0
+          acc[category] += value
+          return acc
+        }, {})
+
+        // Sort by value and take top 10 if there are too many categories
+        const sortedEntries = Object.entries(aggregatedData)
+          .sort((a: any, b: any) => b[1] - a[1])
+          .slice(0, 10)
+
+        const sortedData = Object.fromEntries(sortedEntries)
+
+        const colors = [
+          'rgba(99, 102, 241, 0.8)',
+          'rgba(34, 197, 94, 0.8)',
+          'rgba(239, 68, 68, 0.8)',
+          'rgba(245, 158, 11, 0.8)',
+          'rgba(236, 72, 153, 0.8)',
+          'rgba(14, 165, 233, 0.8)',
+          'rgba(168, 85, 247, 0.8)',
+          'rgba(251, 146, 60, 0.8)',
+          'rgba(20, 184, 166, 0.8)',
+          'rgba(244, 63, 94, 0.8)',
+        ]
+
+        // Bar Chart
+        charts.genericBar = {
+          labels: Object.keys(sortedData),
+          datasets: [
+            {
+              label: numericKey.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
+              data: Object.values(sortedData),
+              backgroundColor: colors,
+              borderColor: colors.map(c => c.replace('0.8', '1')),
+              borderWidth: 2,
+              borderRadius: 8,
+            },
+          ],
+        }
+
+        // Pie/Doughnut Chart (if there are 2-10 categories)
+        if (Object.keys(sortedData).length >= 2 && Object.keys(sortedData).length <= 10) {
+          charts.genericPie = {
+            labels: Object.keys(sortedData),
+            datasets: [
+              {
+                label: numericKey.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
+                data: Object.values(sortedData),
+                backgroundColor: colors,
+                borderColor: colors.map(c => c.replace('0.8', '1')),
+                borderWidth: 2,
+                hoverOffset: 4,
+              },
+            ],
+          }
+        }
+
+        // If we have multiple numeric columns, create a grouped bar chart
+        if (numericCols.length > 1) {
+          const topCategories = Object.keys(sortedData).slice(0, 5)
+          const datasets = numericCols.slice(0, 3).map((col, idx) => {
+            const categoryValues = topCategories.map(cat => {
+              const items = data.filter(item => String(item[categoricalKey]) === cat)
+              return items.reduce((sum, item) => sum + (Number(item[col]) || 0), 0)
+            })
+
+            return {
+              label: col.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
+              data: categoryValues,
+              backgroundColor: colors[idx],
+              borderColor: colors[idx].replace('0.8', '1'),
+              borderWidth: 2,
+              borderRadius: 8,
+            }
+          })
+
+          charts.genericGrouped = {
+            labels: topCategories,
+            datasets: datasets,
+          }
+        }
+      }
+
+      // If we only have numeric columns, create a simple bar chart with row indices
+      else if (numericCols.length > 0) {
+        const numericKey = numericCols[0]
+        const topData = data.slice(0, 10)
+
+        charts.genericBar = {
+          labels: topData.map((_, idx) => `Record ${idx + 1}`),
+          datasets: [
+            {
+              label: numericKey.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
+              data: topData.map(item => Number(item[numericKey]) || 0),
+              backgroundColor: 'rgba(99, 102, 241, 0.8)',
+              borderColor: 'rgb(99, 102, 241)',
+              borderWidth: 2,
+              borderRadius: 8,
+            },
+          ],
+        }
+      }
+    }
+
     return charts
   }
 
@@ -724,6 +859,50 @@ export default function InteractiveCharts({ data, insights }: Props) {
                   },
                 }}
               />
+            </div>
+          </motion.div>
+        )}
+
+        {/* Generic Charts - Fallback for unrecognized data patterns */}
+        {charts.genericBar && (
+          <motion.div variants={itemVariants} className="card p-6  ">
+            <div className="flex items-center gap-2 mb-4">
+              <BarChart3 className="w-5 h-5 text-indigo-600" />
+              <h4 className="font-semibold" style={{ color: 'var(--text-primary)' }}>Data Overview</h4>
+            </div>
+            <div className="h-64">
+              <Bar data={charts.genericBar} options={chartOptions} />
+            </div>
+          </motion.div>
+        )}
+
+        {charts.genericPie && (
+          <motion.div variants={itemVariants} className="card p-6  ">
+            <div className="flex items-center gap-2 mb-4">
+              <PieChart className="w-5 h-5 text-purple-600" />
+              <h4 className="font-semibold" style={{ color: 'var(--text-primary)' }}>Distribution</h4>
+            </div>
+            <div className="h-64">
+              <Doughnut
+                data={charts.genericPie}
+                options={{
+                  ...chartOptions,
+                  cutout: '60%',
+                  scales: undefined,
+                }}
+              />
+            </div>
+          </motion.div>
+        )}
+
+        {charts.genericGrouped && (
+          <motion.div variants={itemVariants} className="card p-6  ">
+            <div className="flex items-center gap-2 mb-4">
+              <BarChart3 className="w-5 h-5 text-green-600" />
+              <h4 className="font-semibold" style={{ color: 'var(--text-primary)' }}>Comparative Analysis</h4>
+            </div>
+            <div className="h-64">
+              <Bar data={charts.genericGrouped} options={chartOptions} />
             </div>
           </motion.div>
         )}

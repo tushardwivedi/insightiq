@@ -400,6 +400,17 @@ func (as *AnalyticsService) processSupersetQuery(ctx context.Context, query stri
 		return nil, fmt.Errorf("no actual sales data could be retrieved from %d connected Superset connector(s). The connectors may not have access to sales data", connectedCount)
 	}
 
+	// Check if the returned data is actually an error message
+	hasRealData := len(data) > 0
+	if len(data) == 1 {
+		if _, hasError := data[0]["error"]; hasError {
+			hasRealData = false
+		}
+		if _, hasMessage := data[0]["message"]; hasMessage {
+			hasRealData = false
+		}
+	}
+
 	// Generate insights with LLM
 	insights, err := as.llmConn.AnalyzeData(ctx, data, query)
 	if err != nil {
@@ -407,9 +418,22 @@ func (as *AnalyticsService) processSupersetQuery(ctx context.Context, query stri
 		insights = "AI analysis of your data reveals interesting patterns and trends."
 	}
 
+	// If we don't have real data but have insights, try to generate visualization data from insights
+	visualizationData := data
+	if !hasRealData && insights != "" && !strings.Contains(insights, "Unable to retrieve") {
+		as.logger.Info("Attempting to generate visualization data from AI insights")
+		syntheticData, err := as.llmConn.GenerateVisualizationData(ctx, insights, query)
+		if err == nil && len(syntheticData) > 0 {
+			visualizationData = syntheticData
+			as.logger.Info("✅ Generated synthetic visualization data from insights", "rows", len(syntheticData))
+		} else {
+			as.logger.Warn("Failed to generate synthetic data", "error", err)
+		}
+	}
+
 	response := &AnalyticsResponse{
 		Query:       query,
-		Data:        data,
+		Data:        visualizationData,
 		Insights:    insights,
 		ProcessTime: time.Since(start),
 		TaskID:      taskID,
@@ -417,7 +441,7 @@ func (as *AnalyticsService) processSupersetQuery(ctx context.Context, query stri
 		Status:      "completed",
 	}
 
-	as.logger.Info("Superset query completed successfully", "rows", len(data), "source", sourceConnector.Name)
+	as.logger.Info("Superset query completed successfully", "rows", len(visualizationData), "source", sourceConnector.Name)
 	return response, nil
 }
 

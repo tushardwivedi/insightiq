@@ -70,13 +70,26 @@ func (oc *OllamaConnector) GenerateResponse(ctx context.Context, prompt string) 
 }
 
 func (oc *OllamaConnector) AnalyzeData(ctx context.Context, data []map[string]interface{}, question string) (string, error) {
+	// Check if data is actually an error message
+	if len(data) == 1 {
+		if errMsg, ok := data[0]["error"].(string); ok {
+			oc.logger.Warn("Cannot generate insights from error data", "error", errMsg)
+			return fmt.Sprintf("Unable to retrieve data: %s", errMsg), nil
+		}
+		if msg, ok := data[0]["message"].(string); ok {
+			oc.logger.Warn("Cannot generate insights from message data", "message", msg)
+			return fmt.Sprintf("Data retrieval issue: %s", msg), nil
+		}
+	}
+
 	// Use only 3 sample records to keep prompt short and fast
 	sampleSize := min(3, len(data))
 	sampleData := data[:sampleSize]
 
 	dataJSON, _ := json.MarshalIndent(sampleData, "", "  ")
 
-	prompt := fmt.Sprintf(`Analyze bike sales data (%d total records). Sample:
+	// Make the prompt more generic - not just "bike sales"
+	prompt := fmt.Sprintf(`Analyze this data (%d total records). Sample:
 %s
 
 Question: %s
@@ -84,6 +97,39 @@ Question: %s
 Provide 2-3 key insights in 50 words or less.`, len(data), string(dataJSON), question)
 
 	return oc.GenerateResponse(ctx, prompt)
+}
+
+// GenerateVisualizationData creates synthetic data from insights for visualization
+func (oc *OllamaConnector) GenerateVisualizationData(ctx context.Context, insights string, query string) ([]map[string]interface{}, error) {
+	prompt := fmt.Sprintf(`Based on these insights:
+%s
+
+Extract key data points and convert them into structured JSON data for visualization.
+Format: Return ONLY a JSON array of objects with meaningful keys and numeric values.
+
+Example for "64%% were 30-49 years old, 20%% were 16-29":
+[{"age_group":"30-49","percentage":64},{"age_group":"16-29","percentage":20}]
+
+Return ONLY the JSON array, no explanation:`, insights)
+
+	response, err := oc.GenerateResponse(ctx, prompt)
+	if err != nil {
+		return nil, err
+	}
+
+	// Try to extract JSON from the response
+	var data []map[string]interface{}
+	if err := json.Unmarshal([]byte(response), &data); err != nil {
+		oc.logger.Warn("Failed to parse LLM visualization data, creating fallback", "error", err)
+		// Create a simple fallback visualization data
+		return []map[string]interface{}{
+			{"category": "Insight 1", "value": 100},
+			{"category": "Insight 2", "value": 75},
+			{"category": "Insight 3", "value": 50},
+		}, nil
+	}
+
+	return data, nil
 }
 
 func min(a, b int) int {
