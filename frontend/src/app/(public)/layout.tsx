@@ -50,9 +50,9 @@ export default function PublicLayout({
             <div>
               <h4 className="font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>Resources</h4>
               <ul className="space-y-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-                <li><a href="#" className="hover:underline">Documentation</a></li>
-                <li><a href="#" className="hover:underline">Installation Guide</a></li>
-                <li><a href="#" className="hover:underline">API Reference</a></li>
+                <li><Link href="/docs" className="hover:underline">Documentation</Link></li>
+                <li><Link href="/docs#installation" className="hover:underline">Installation Guide</Link></li>
+                <li><Link href="/docs/api" className="hover:underline">API Reference</Link></li>
               </ul>
             </div>
             <div>
