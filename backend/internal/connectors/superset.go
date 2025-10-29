@@ -314,14 +314,24 @@ func (sc *SuperSetConnector) QueryDashboardData(ctx context.Context, dashboardID
 		return nil, fmt.Errorf("dashboard %d not found", dashboardID)
 	}
 
+	// Extract dashboard title for proper error messages
+	dashboardTitle := "Unknown Dashboard"
+	if title, ok := targetDashboard["dashboard_title"].(string); ok {
+		dashboardTitle = title
+	} else if title, ok := targetDashboard["title"].(string); ok {
+		dashboardTitle = title
+	}
+
+	sc.logger.Info("Processing dashboard", "title", dashboardTitle, "id", dashboardID)
+
 	// Try to get data from dashboard charts
 	data, err := sc.GetDashboardData(ctx, dashboardID)
 	if err != nil {
-		sc.logger.Warn("Failed to get dashboard chart data", "dashboard_id", dashboardID, "error", err)
+		sc.logger.Warn("Failed to get dashboard chart data", "dashboard", dashboardTitle, "dashboard_id", dashboardID, "error", err)
 	}
 
 	if len(data) > 0 {
-		sc.logger.Info("✅ Retrieved data from dashboard charts", "rows", len(data))
+		sc.logger.Info("✅ Retrieved data from dashboard charts", "dashboard", dashboardTitle, "rows", len(data))
 		return &SuperSetResponse{
 			Data:   data,
 			Status: "success",
@@ -329,7 +339,7 @@ func (sc *SuperSetConnector) QueryDashboardData(ctx context.Context, dashboardID
 	}
 
 	// Fallback: Use generic SQL to explore the database
-	sc.logger.Warn("No data from dashboard charts, using generic discovery query")
+	sc.logger.Warn("No data from dashboard charts, using generic discovery query", "dashboard", dashboardTitle)
 
 	// Try to discover what tables are available
 	discoverSQL := `
@@ -352,12 +362,13 @@ func (sc *SuperSetConnector) QueryDashboardData(ctx context.Context, dashboardID
 
 	if len(result.Data) > 0 {
 		// Return table information so user knows what's available
-		sc.logger.Info("Returning database schema information", "tables_found", len(result.Data))
+		sc.logger.Info("Returning database schema information", "dashboard", dashboardTitle, "tables_found", len(result.Data))
 		return &SuperSetResponse{
 			Data: []map[string]interface{}{
 				{
-					"message": fmt.Sprintf("Found World Bank dashboard but no data available from charts. Discovered %d tables/columns in the database. Please check the dashboard configuration in Superset.", len(result.Data)),
-					"schema_info": result.Data,
+					"message": fmt.Sprintf("Found '%s' dashboard but no data available from charts. Discovered %d tables/columns in the database. Please check the dashboard configuration in Superset.", dashboardTitle, len(result.Data)),
+					"schema_info":    result.Data,
+					"dashboard_title": dashboardTitle,
 				},
 			},
 			Status: "partial",
@@ -367,8 +378,9 @@ func (sc *SuperSetConnector) QueryDashboardData(ctx context.Context, dashboardID
 	return &SuperSetResponse{
 		Data: []map[string]interface{}{
 			{
-				"error": "World Bank dashboard found but contains no accessible data. The dashboard may need to be configured with datasets in Superset.",
-				"dashboard_id": dashboardID,
+				"error":           fmt.Sprintf("'%s' dashboard found but contains no accessible data. The dashboard may need to be configured with datasets in Superset.", dashboardTitle),
+				"dashboard_id":    dashboardID,
+				"dashboard_title": dashboardTitle,
 			},
 		},
 		Status: "error",
