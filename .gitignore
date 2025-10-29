@@ -74,3 +74,6 @@ vendor/
 
 # Claude AI working files
 readmeclaude.md
+
+# Work Related Readme files
+backend/SECURITY_FIX_SQL_INJECTION.md
