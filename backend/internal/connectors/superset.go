@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -16,13 +17,14 @@ import (
 )
 
 type SuperSetConnector struct {
-	baseURL  string
-	username string
-	password string
-	token    string
-	client   *http.Client
-	logger   *slog.Logger
-	cache    *cache.RedisCache // Optional cache
+	baseURL   string
+	username  string
+	password  string
+	token     string
+	csrfToken string // CSRF token extracted from JWT for POST requests
+	client    *http.Client
+	logger    *slog.Logger
+	cache     *cache.RedisCache // Optional cache
 }
 
 type SuperSetQuery struct {
@@ -125,8 +127,45 @@ func (sc *SuperSetConnector) Authenticate(ctx context.Context) error {
 	}
 
 	sc.token = authResp.AccessToken
+
+	// Extract CSRF token from JWT payload
+	sc.csrfToken = sc.extractCSRFFromJWT(authResp.AccessToken)
+	if sc.csrfToken != "" {
+		sc.logger.Debug("Extracted CSRF token from JWT", "csrf_token", sc.csrfToken[:16]+"...")
+	}
+
 	sc.logger.Info("SuperSet authenticated successfully")
 	return nil
+}
+
+// extractCSRFFromJWT extracts the CSRF token from the JWT payload
+func (sc *SuperSetConnector) extractCSRFFromJWT(token string) string {
+	// JWT format: header.payload.signature
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return ""
+	}
+
+	// Decode the payload (second part)
+	payload, err := base64.RawStdEncoding.DecodeString(parts[1])
+	if err != nil {
+		sc.logger.Warn("Failed to decode JWT payload", "error", err)
+		return ""
+	}
+
+	// Parse JSON to extract CSRF
+	var claims map[string]interface{}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		sc.logger.Warn("Failed to parse JWT payload", "error", err)
+		return ""
+	}
+
+	// Extract CSRF token
+	if csrf, ok := claims["csrf"].(string); ok {
+		return csrf
+	}
+
+	return ""
 }
 
 func (sc *SuperSetConnector) ExecuteSQL(ctx context.Context, sql string) (*SuperSetResponse, error) {
@@ -165,6 +204,10 @@ func (sc *SuperSetConnector) ExecuteSQL(ctx context.Context, sql string) (*Super
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+sc.token)
+	// Add CSRF token for POST requests
+	if sc.csrfToken != "" {
+		req.Header.Set("X-CSRFToken", sc.csrfToken)
+	}
 
 	resp, err := sc.client.Do(req)
 	if err != nil {
@@ -583,7 +626,8 @@ func (sc *SuperSetConnector) GetCharts(ctx context.Context) ([]map[string]interf
 	return result.Result, nil
 }
 
-// GetChartData retrieves data from a specific chart using the chart export API
+// GetChartData retrieves data from a specific chart
+// Uses multiple strategies to get data, falling back when needed
 func (sc *SuperSetConnector) GetChartData(ctx context.Context, chartID int) ([]map[string]interface{}, error) {
 	if sc.token == "" {
 		if err := sc.Authenticate(ctx); err != nil {
@@ -591,12 +635,35 @@ func (sc *SuperSetConnector) GetChartData(ctx context.Context, chartID int) ([]m
 		}
 	}
 
-	// Use the chart export API which is more reliable
-	url := fmt.Sprintf("%s/api/v1/chart/%d/data", sc.baseURL, chartID)
+	sc.logger.Debug("Fetching data for chart", "chart_id", chartID)
+
+	// Strategy 1: Try GET /api/v1/chart/{id}/data/ (works if query_context is set)
+	data, err := sc.getChartDataDirect(ctx, chartID)
+	if err == nil && len(data) > 0 {
+		sc.logger.Debug("✅ Got chart data via direct API", "chart_id", chartID, "rows", len(data))
+		return data, nil
+	}
+	sc.logger.Debug("Direct chart data API failed or returned no data", "chart_id", chartID, "error", err)
+
+	// Strategy 2: Get chart metadata and extract dataset info, then query via SQL Lab
+	data, err = sc.getChartDataViaSQLLab(ctx, chartID)
+	if err == nil && len(data) > 0 {
+		sc.logger.Debug("✅ Got chart data via SQL Lab", "chart_id", chartID, "rows", len(data))
+		return data, nil
+	}
+	sc.logger.Debug("SQL Lab query failed", "chart_id", chartID, "error", err)
+
+	sc.logger.Warn("All methods to fetch chart data failed", "chart_id", chartID)
+	return nil, fmt.Errorf("unable to fetch data for chart %d: all methods failed", chartID)
+}
+
+// getChartDataDirect tries to get chart data using GET /api/v1/chart/{id}/data/
+func (sc *SuperSetConnector) getChartDataDirect(ctx context.Context, chartID int) ([]map[string]interface{}, error) {
+	url := fmt.Sprintf("%s/api/v1/chart/%d/data/", sc.baseURL, chartID)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create chart data request: %w", err)
+		return nil, err
 	}
 
 	req.Header.Set("Authorization", "Bearer "+sc.token)
@@ -604,12 +671,12 @@ func (sc *SuperSetConnector) GetChartData(ctx context.Context, chartID int) ([]m
 
 	resp, err := sc.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get chart data: %w", err)
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("chart data API returned status %d", resp.StatusCode)
+		return nil, fmt.Errorf("status %d", resp.StatusCode)
 	}
 
 	var result struct {
@@ -617,10 +684,10 @@ func (sc *SuperSetConnector) GetChartData(ctx context.Context, chartID int) ([]m
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("failed to parse chart data response: %w", err)
+		return nil, err
 	}
 
-	// Extract data from the nested result structure
+	// Extract data from nested structure
 	var data []map[string]interface{}
 	if len(result.Result) > 0 {
 		if queryResult, ok := result.Result[0]["data"].([]interface{}); ok {
@@ -633,6 +700,162 @@ func (sc *SuperSetConnector) GetChartData(ctx context.Context, chartID int) ([]m
 	}
 
 	return data, nil
+}
+
+// getChartDataViaSQLLab gets chart data by querying the underlying dataset via SQL Lab
+func (sc *SuperSetConnector) getChartDataViaSQLLab(ctx context.Context, chartID int) ([]map[string]interface{}, error) {
+	// First get chart metadata to find the datasource
+	chartURL := fmt.Sprintf("%s/api/v1/chart/%d", sc.baseURL, chartID)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", chartURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+sc.token)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := sc.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to get chart metadata: status %d", resp.StatusCode)
+	}
+
+	var chartMeta struct {
+		Result struct {
+			DatasourceID   interface{} `json:"datasource_id"`
+			DatasourceType string      `json:"datasource_type"`
+			Params         string      `json:"params"`
+		} `json:"result"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&chartMeta); err != nil {
+		return nil, err
+	}
+
+	// Parse params to get form_data
+	var params map[string]interface{}
+	if err := json.Unmarshal([]byte(chartMeta.Result.Params), &params); err != nil {
+		sc.logger.Warn("Failed to parse chart params", "chart_id", chartID, "error", err)
+		return nil, err
+	}
+
+	// Extract datasource info
+	datasourceStr, _ := params["datasource"].(string)
+	if datasourceStr == "" {
+		return nil, fmt.Errorf("no datasource found in chart params")
+	}
+
+	// Parse datasource string (format: "id__type")
+	parts := strings.Split(datasourceStr, "__")
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("invalid datasource format: %s", datasourceStr)
+	}
+
+	// Get the dataset metadata to find table name
+	datasetID := parts[0]
+	datasetURL := fmt.Sprintf("%s/api/v1/dataset/%s", sc.baseURL, datasetID)
+
+	req2, err := http.NewRequestWithContext(ctx, "GET", datasetURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req2.Header.Set("Authorization", "Bearer "+sc.token)
+	req2.Header.Set("Accept", "application/json")
+
+	resp2, err := sc.client.Do(req2)
+	if err != nil {
+		return nil, err
+	}
+	defer resp2.Body.Close()
+
+	if resp2.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to get dataset: status %d", resp2.StatusCode)
+	}
+
+	var dataset struct {
+		Result struct {
+			TableName  string `json:"table_name"`
+			DatabaseID int    `json:"database_id"`
+			SQL        string `json:"sql"`
+		} `json:"result"`
+	}
+
+	if err := json.NewDecoder(resp2.Body).Decode(&dataset); err != nil {
+		return nil, err
+	}
+
+	tableName := dataset.Result.TableName
+	if tableName == "" && dataset.Result.SQL != "" {
+		// Virtual dataset - use the SQL
+		tableName = fmt.Sprintf("(%s) as virtual_table", dataset.Result.SQL)
+	}
+
+	if tableName == "" {
+		return nil, fmt.Errorf("no table name or SQL found for dataset")
+	}
+
+	// Build SQL query based on chart params
+	groupby, _ := params["groupby"].([]interface{})
+	metric, _ := params["metric"].(string)
+	rowLimit := 100 // default
+
+	if limit, ok := params["row_limit"].(float64); ok && limit > 0 {
+		rowLimit = int(limit)
+	}
+
+	// Construct SELECT clause
+	var selectCols []string
+	for _, col := range groupby {
+		if colStr, ok := col.(string); ok {
+			selectCols = append(selectCols, colStr)
+		}
+	}
+
+	// Add metric
+	if metric == "count" || metric == "" {
+		selectCols = append(selectCols, "COUNT(*) as count")
+	} else {
+		selectCols = append(selectCols, fmt.Sprintf("SUM(%s) as %s", metric, metric))
+	}
+
+	// Build GROUP BY clause
+	var groupByCols []string
+	for _, col := range groupby {
+		if colStr, ok := col.(string); ok {
+			groupByCols = append(groupByCols, colStr)
+		}
+	}
+
+	// Construct SQL
+	var sql string
+	if len(groupByCols) > 0 {
+		sql = fmt.Sprintf("SELECT %s FROM %s GROUP BY %s LIMIT %d",
+			strings.Join(selectCols, ", "),
+			tableName,
+			strings.Join(groupByCols, ", "),
+			rowLimit)
+	} else {
+		sql = fmt.Sprintf("SELECT %s FROM %s LIMIT %d",
+			strings.Join(selectCols, ", "),
+			tableName,
+			rowLimit)
+	}
+
+	sc.logger.Debug("Generated SQL for chart", "chart_id", chartID, "sql", sql)
+
+	// Execute SQL via SQL Lab
+	result, err := sc.ExecuteSQL(ctx, sql)
+	if err != nil {
+		return nil, err
+	}
+
+	return result.Data, nil
 }
 
 // GetDashboardData retrieves data from all charts in a dashboard
@@ -672,22 +895,61 @@ func (sc *SuperSetConnector) GetDashboardData(ctx context.Context, dashboardID i
 	}
 
 	// Extract chart IDs from dashboard
+	// Superset stores chart IDs in position_json, not in the charts array
+	// The charts array contains chart names (strings), not chart objects
 	var allData []map[string]interface{}
-	if charts, ok := dashboardResult.Result["charts"].([]interface{}); ok {
-		for _, chart := range charts {
-			if chartMap, ok := chart.(map[string]interface{}); ok {
-				if chartID, ok := chartMap["id"].(float64); ok {
-					chartData, err := sc.GetChartData(ctx, int(chartID))
-					if err != nil {
-						sc.logger.Warn("Failed to get chart data", "chart_id", int(chartID), "error", err)
-						continue
+	var chartIDs []int
+
+	// Try to extract chart IDs from position_json first (this is the correct way)
+	if positionJSON, ok := dashboardResult.Result["position_json"].(string); ok {
+		var positions map[string]interface{}
+		if err := json.Unmarshal([]byte(positionJSON), &positions); err == nil {
+			sc.logger.Debug("Parsing position_json for chart IDs")
+			for key, value := range positions {
+				if strings.HasPrefix(key, "CHART-") {
+					if valueMap, ok := value.(map[string]interface{}); ok {
+						if meta, ok := valueMap["meta"].(map[string]interface{}); ok {
+							if chartID, ok := meta["chartId"].(float64); ok {
+								chartIDs = append(chartIDs, int(chartID))
+								sc.logger.Debug("Found chart ID in position_json", "chart_id", int(chartID))
+							}
+						}
 					}
-					allData = append(allData, chartData...)
 				}
 			}
 		}
 	}
 
+	// Fallback: Try old method (charts as array of objects) - for backward compatibility
+	if len(chartIDs) == 0 {
+		sc.logger.Debug("No charts found in position_json, trying legacy charts array")
+		if charts, ok := dashboardResult.Result["charts"].([]interface{}); ok {
+			for _, chart := range charts {
+				if chartMap, ok := chart.(map[string]interface{}); ok {
+					if chartID, ok := chartMap["id"].(float64); ok {
+						chartIDs = append(chartIDs, int(chartID))
+					}
+				}
+			}
+		}
+	}
+
+	sc.logger.Info("Extracted chart IDs from dashboard", "dashboard_id", dashboardID, "chart_count", len(chartIDs), "chart_ids", chartIDs)
+
+	// Fetch data from all charts
+	for _, chartID := range chartIDs {
+		chartData, err := sc.GetChartData(ctx, chartID)
+		if err != nil {
+			sc.logger.Warn("Failed to get chart data", "chart_id", chartID, "error", err)
+			continue
+		}
+		if len(chartData) > 0 {
+			sc.logger.Debug("Retrieved data from chart", "chart_id", chartID, "rows", len(chartData))
+			allData = append(allData, chartData...)
+		}
+	}
+
+	sc.logger.Info("Retrieved total data from dashboard", "dashboard_id", dashboardID, "total_rows", len(allData))
 	return allData, nil
 }
 
