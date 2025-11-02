@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { DataConnector, ConnectorTestResult } from '@/types'
 import { apiClient } from '@/lib/api'
 import ConnectorCard from './ConnectorCard'
@@ -18,13 +18,7 @@ export default function ConnectorSidebar({ isOpen, onClose }: ConnectorSidebarPr
   const [selectedConnectorType, setSelectedConnectorType] = useState<string>('')
   const [isHovered, setIsHovered] = useState(false)
 
-  useEffect(() => {
-    if (isOpen) {
-      loadConnectors()
-    }
-  }, [isOpen])
-
-  const loadConnectors = async () => {
+  const loadConnectors = useCallback(async () => {
     try {
       setLoading(true)
       const response = await apiClient.getConnectors()
@@ -34,25 +28,40 @@ export default function ConnectorSidebar({ isOpen, onClose }: ConnectorSidebarPr
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  const handleConnectorAdded = (connector: DataConnector) => {
+  useEffect(() => {
+    if (isOpen) {
+      loadConnectors()
+    }
+  }, [isOpen, loadConnectors])
+
+  const handleConnectorAdded = useCallback((connector: DataConnector) => {
     setConnectors(prev => [...prev, connector])
     setShowAddForm(false)
     setSelectedConnectorType('')
-  }
+  }, [])
 
-  const handleConnectorUpdated = (updatedConnector: DataConnector) => {
+  const handleConnectorUpdated = useCallback((updatedConnector: DataConnector) => {
     setConnectors(prev =>
       prev.map(c => c.id === updatedConnector.id ? updatedConnector : c)
     )
-  }
+  }, [])
 
-  const handleConnectorDeleted = (connectorId: string) => {
+  const handleConnectorDeleted = useCallback((connectorId: string) => {
     setConnectors(prev => prev.filter(c => c.id !== connectorId))
-  }
+  }, [])
 
-  const handleTestConnection = async (connector: DataConnector) => {
+  const handleCancelForm = useCallback(() => {
+    setSelectedConnectorType('')
+  }, [])
+
+  const handleBackToConnectors = useCallback(() => {
+    setShowAddForm(false)
+    setSelectedConnectorType('')
+  }, [])
+
+  const handleTestConnection = useCallback(async (connector: DataConnector) => {
     try {
       setConnectors(prev =>
         prev.map(c =>
@@ -81,7 +90,7 @@ export default function ConnectorSidebar({ isOpen, onClose }: ConnectorSidebarPr
         )
       )
     }
-  }
+  }, [])
 
   const connectorTypes = [
     {
@@ -247,10 +256,7 @@ export default function ConnectorSidebar({ isOpen, onClose }: ConnectorSidebarPr
                 <>
                   {/* Back Button */}
                   <button
-                    onClick={() => {
-                      setShowAddForm(false)
-                      setSelectedConnectorType('')
-                    }}
+                    onClick={handleBackToConnectors}
                     className="mb-4 flex items-center gap-2 transition-colors"
                     style={{ color: 'var(--text-secondary)' }}
                     onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
@@ -294,14 +300,14 @@ export default function ConnectorSidebar({ isOpen, onClose }: ConnectorSidebarPr
                     </>
                   ) : selectedConnectorType === 'superset' ? (
                     <SupersetConnectorForm
-                      onCancel={() => setSelectedConnectorType('')}
+                      onCancel={handleCancelForm}
                       onSuccess={handleConnectorAdded}
                     />
                   ) : (
                     <div className="text-center py-8" style={{ color: 'var(--text-secondary)' }}>
                       <p>Connector form for {selectedConnectorType} coming soon!</p>
                       <button
-                        onClick={() => setSelectedConnectorType('')}
+                        onClick={handleCancelForm}
                         className="mt-4 px-4 py-2 rounded-md transition-colors"
                         style={{
                           background: 'var(--hover-surface)',

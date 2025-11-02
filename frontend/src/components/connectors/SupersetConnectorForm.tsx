@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, memo, useCallback, useMemo } from 'react'
 import { DataConnector, SupersetConnectorConfig } from '@/types'
 import { apiClient } from '@/lib/api'
 
@@ -10,7 +10,7 @@ interface SupersetConnectorFormProps {
   connector?: DataConnector
 }
 
-export default function SupersetConnectorForm({ onCancel, onSuccess, connector }: SupersetConnectorFormProps) {
+function SupersetConnectorForm({ onCancel, onSuccess, connector }: SupersetConnectorFormProps) {
   const [formData, setFormData] = useState({
     name: connector?.name || '',
     url: connector?.config.url || '',
@@ -22,6 +22,39 @@ export default function SupersetConnectorForm({ onCancel, onSuccess, connector }
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
   const [authMethod, setAuthMethod] = useState<'credentials' | 'token'>('credentials')
+
+  // Memoized change handlers
+  const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData(prev => ({ ...prev, name: e.target.value }))
+  }, [])
+
+  const handleUrlChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData(prev => ({ ...prev, url: e.target.value }))
+  }, [])
+
+  const handleUsernameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData(prev => ({ ...prev, username: e.target.value }))
+  }, [])
+
+  const handlePasswordChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData(prev => ({ ...prev, password: e.target.value }))
+  }, [])
+
+  const handleBearerTokenChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setFormData(prev => ({ ...prev, bearer_token: e.target.value }))
+  }, [])
+
+  const handleAuthMethodChange = useCallback((value: 'credentials' | 'token') => {
+    setAuthMethod(value)
+  }, [])
+
+  const handleCredentialsRadioChange = useCallback(() => {
+    handleAuthMethodChange('credentials')
+  }, [handleAuthMethodChange])
+
+  const handleTokenRadioChange = useCallback(() => {
+    handleAuthMethodChange('token')
+  }, [handleAuthMethodChange])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -93,8 +126,8 @@ export default function SupersetConnectorForm({ onCancel, onSuccess, connector }
     }
   }
 
-  const isFormValid = () => {
-    const isValid = (
+  const isFormValid = useMemo(() => {
+    return (
       formData.name.trim() &&
       formData.url.trim() &&
       (authMethod === 'credentials'
@@ -102,17 +135,7 @@ export default function SupersetConnectorForm({ onCancel, onSuccess, connector }
         : formData.bearer_token.trim()
       )
     )
-    console.log('Form validation:', {
-      name: formData.name.trim(),
-      url: formData.url.trim(),
-      authMethod,
-      username: formData.username.trim(),
-      password: formData.password.trim(),
-      bearer_token: formData.bearer_token.trim(),
-      isValid
-    })
-    return isValid
-  }
+  }, [formData.name, formData.url, formData.username, formData.password, formData.bearer_token, authMethod])
 
   return (
     <div className="space-y-6">
@@ -135,7 +158,7 @@ export default function SupersetConnectorForm({ onCancel, onSuccess, connector }
             type="text"
             id="name"
             value={formData.name}
-            onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+            onChange={handleNameChange}
             placeholder="My Superset Instance"
             className="w-full px-3 py-2 border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder:text-gray-600 font-medium dark:text-gray-900 dark:bg-white dark:placeholder-gray-500"
             style={{ color: '#111827', backgroundColor: '#ffffff' }}
@@ -152,7 +175,7 @@ export default function SupersetConnectorForm({ onCancel, onSuccess, connector }
             type="url"
             id="url"
             value={formData.url}
-            onChange={(e) => setFormData(prev => ({ ...prev, url: e.target.value }))}
+            onChange={handleUrlChange}
             placeholder="https://superset.example.com"
             className="w-full px-3 py-2 border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder:text-gray-600 font-medium dark:text-gray-900 dark:bg-white dark:placeholder-gray-500"
             style={{ color: '#111827', backgroundColor: '#ffffff' }}
@@ -171,7 +194,7 @@ export default function SupersetConnectorForm({ onCancel, onSuccess, connector }
                 type="radio"
                 value="credentials"
                 checked={authMethod === 'credentials'}
-                onChange={(e) => setAuthMethod(e.target.value as 'credentials')}
+                onChange={handleCredentialsRadioChange}
                 className="mr-2"
               />
               <span className="text-sm font-medium !text-black">Username & Password</span>
@@ -181,7 +204,7 @@ export default function SupersetConnectorForm({ onCancel, onSuccess, connector }
                 type="radio"
                 value="token"
                 checked={authMethod === 'token'}
-                onChange={(e) => setAuthMethod(e.target.value as 'token')}
+                onChange={handleTokenRadioChange}
                 className="mr-2"
               />
               <span className="text-sm font-medium !text-black">Bearer Token</span>
@@ -200,7 +223,7 @@ export default function SupersetConnectorForm({ onCancel, onSuccess, connector }
                 type="text"
                 id="username"
                 value={formData.username}
-                onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value }))}
+                onChange={handleUsernameChange}
                 placeholder="admin"
                 className="w-full px-3 py-2 border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder:text-gray-600 font-medium dark:text-gray-900 dark:bg-white dark:placeholder-gray-500"
                 style={{ color: '#111827', backgroundColor: '#ffffff' }}
@@ -216,7 +239,7 @@ export default function SupersetConnectorForm({ onCancel, onSuccess, connector }
                 type="password"
                 id="password"
                 value={formData.password}
-                onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+                onChange={handlePasswordChange}
                 placeholder="••••••••"
                 className="w-full px-3 py-2 border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder:text-gray-600 font-medium dark:text-gray-900 dark:bg-white dark:placeholder-gray-500"
                 style={{ color: '#111827', backgroundColor: '#ffffff' }}
@@ -232,7 +255,7 @@ export default function SupersetConnectorForm({ onCancel, onSuccess, connector }
             <textarea
               id="bearer_token"
               value={formData.bearer_token}
-              onChange={(e) => setFormData(prev => ({ ...prev, bearer_token: e.target.value }))}
+              onChange={handleBearerTokenChange}
               placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..."
               rows={3}
               className="w-full px-3 py-2 border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none bg-white text-gray-900 placeholder:text-gray-600 font-medium dark:text-gray-900 dark:bg-white dark:placeholder-gray-500"
@@ -264,7 +287,7 @@ export default function SupersetConnectorForm({ onCancel, onSuccess, connector }
           <button
             type="button"
             onClick={handleTestConnection}
-            disabled={!isFormValid() || testing}
+            disabled={!isFormValid || testing}
             className="flex-1 px-4 py-2 border border-blue-600 text-blue-600 rounded-md hover:bg-blue-50 disabled:bg-gray-100 disabled:text-gray-400 disabled:border-gray-300 disabled:cursor-not-allowed transition-colors"
           >
             {testing ? 'Testing...' : 'Test Connection'}
@@ -278,7 +301,7 @@ export default function SupersetConnectorForm({ onCancel, onSuccess, connector }
           </button>
           <button
             type="submit"
-            disabled={!isFormValid() || loading}
+            disabled={!isFormValid || loading}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
           >
             {loading ? 'Saving...' : connector ? 'Update' : 'Save'}
@@ -288,3 +311,5 @@ export default function SupersetConnectorForm({ onCancel, onSuccess, connector }
     </div>
   )
 }
+
+export default memo(SupersetConnectorForm)

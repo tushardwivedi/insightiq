@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Header from '@/components/Header'
 import StatusIndicator from '@/components/StatusIndicator'
@@ -19,6 +19,23 @@ export default function AppLayoutContent({ children }: AppLayoutContentProps) {
   const [health, setHealth] = useState<HealthCheck | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
+  const handleCloseSidebar = useCallback(() => {
+    setSidebarOpen(false)
+  }, [])
+
+  const handleOpenSidebar = useCallback(() => {
+    setSidebarOpen(true)
+  }, [])
+
+  const checkHealth = useCallback(async () => {
+    try {
+      const healthData = await apiClient.healthCheck()
+      setHealth(healthData)
+    } catch (error) {
+      console.error('Health check failed:', error)
+    }
+  }, [])
+
   useEffect(() => {
     // Check authentication
     if (!isLoading && !isAuthenticated) {
@@ -31,16 +48,7 @@ export default function AppLayoutContent({ children }: AppLayoutContentProps) {
       const interval = setInterval(checkHealth, 30000)
       return () => clearInterval(interval)
     }
-  }, [isAuthenticated, isLoading, router])
-
-  const checkHealth = async () => {
-    try {
-      const healthData = await apiClient.healthCheck()
-      setHealth(healthData)
-    } catch (error) {
-      console.error('Health check failed:', error)
-    }
-  }
+  }, [isAuthenticated, isLoading, router, checkHealth])
 
   // Show loading state while checking authentication
   if (isLoading) {
@@ -62,7 +70,7 @@ export default function AppLayoutContent({ children }: AppLayoutContentProps) {
   return (
     <div className="flex h-screen" style={{ background: 'var(--primary-background)' }}>
       {/* Connector Sidebar */}
-      <ConnectorSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <ConnectorSidebar isOpen={sidebarOpen} onClose={handleCloseSidebar} />
 
       {/* Main Content - Adjust for collapsible sidebar */}
       <div className="flex-1 flex flex-col ml-0 lg:ml-16 transition-all duration-300 ease-in-out">
@@ -71,7 +79,7 @@ export default function AppLayoutContent({ children }: AppLayoutContentProps) {
           <div className="container mx-auto px-4 py-1">
             <div className="flex items-center gap-4">
               <button
-                onClick={() => setSidebarOpen(true)}
+                onClick={handleOpenSidebar}
                 className="lg:hidden p-2 rounded-md transition-colors"
                 style={{ color: 'var(--text-primary)' }}
                 onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-surface)'}
