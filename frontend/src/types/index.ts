@@ -76,3 +76,30 @@ export interface ConnectorTestResult {
   available_datasets?: string[];
   error?: string;
 }
+
+export interface UploadedFile {
+  id: string;
+  user_id: string;
+  filename: string;
+  original_filename: string;
+  file_size: number;
+  file_type: 'csv' | 'excel';
+  mime_type: string;
+  storage_path: string;
+  table_name: string;
+  schema_json: {
+    columns: Array<{
+      name: string;
+      type: string;
+      nullable: boolean;
+    }>;
+  };
+  row_count: number;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  error_message?: string;
+  source: 'local' | 'google_drive';
+  drive_file_id?: string;
+  created_at: string;
+  updated_at: string;
+  processed_at?: string;
+}

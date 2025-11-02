@@ -5,6 +5,8 @@ import { DataConnector, ConnectorTestResult } from '@/types'
 import { apiClient } from '@/lib/api'
 import ConnectorCard from './ConnectorCard'
 import SupersetConnectorForm from './connectors/SupersetConnectorForm'
+import FileUploadModal from './FileUploadModal'
+import UploadedFilesList from './UploadedFilesList'
 
 interface ConnectorSidebarProps {
   isOpen: boolean
@@ -17,6 +19,8 @@ export default function ConnectorSidebar({ isOpen, onClose }: ConnectorSidebarPr
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedConnectorType, setSelectedConnectorType] = useState<string>('')
   const [isHovered, setIsHovered] = useState(false)
+  const [showFileUploadModal, setShowFileUploadModal] = useState(false)
+  const [fileListRefreshTrigger, setFileListRefreshTrigger] = useState(0)
 
   const loadConnectors = useCallback(async () => {
     try {
@@ -93,6 +97,12 @@ export default function ConnectorSidebar({ isOpen, onClose }: ConnectorSidebarPr
   }, [])
 
   const connectorTypes = [
+    {
+      type: 'file_upload',
+      name: 'File Upload',
+      description: 'Upload CSV or Excel files to query with SQL',
+      icon: '📁',
+    },
     {
       type: 'superset',
       name: 'Apache Superset',
@@ -303,6 +313,28 @@ export default function ConnectorSidebar({ isOpen, onClose }: ConnectorSidebarPr
                       onCancel={handleCancelForm}
                       onSuccess={handleConnectorAdded}
                     />
+                  ) : selectedConnectorType === 'file_upload' ? (
+                    <div>
+                      <h3 className="text-md font-medium mb-4" style={{ color: 'var(--text-primary)' }}>
+                        File Upload
+                      </h3>
+                      <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
+                        Upload CSV or Excel files to query with SQL. Your files will be stored securely and only visible to you.
+                      </p>
+                      <button
+                        onClick={() => setShowFileUploadModal(true)}
+                        className="w-full px-4 py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 mb-4"
+                        style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white' }}
+                        onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+                        onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                        Upload New File
+                      </button>
+                      <UploadedFilesList refreshTrigger={fileListRefreshTrigger} />
+                    </div>
                   ) : (
                     <div className="text-center py-8" style={{ color: 'var(--text-secondary)' }}>
                       <p>Connector form for {selectedConnectorType} coming soon!</p>
@@ -340,6 +372,15 @@ export default function ConnectorSidebar({ isOpen, onClose }: ConnectorSidebarPr
           </div>
         </div>
       </div>
+
+      {/* File Upload Modal */}
+      <FileUploadModal
+        isOpen={showFileUploadModal}
+        onClose={() => setShowFileUploadModal(false)}
+        onUploadComplete={() => {
+          setFileListRefreshTrigger(prev => prev + 1)
+        }}
+      />
     </>
   )
 }

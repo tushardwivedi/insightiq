@@ -6,7 +6,8 @@ import {
   SQLQuery,
   DataConnector,
   ConnectorTestResult,
-  ApiResponse
+  ApiResponse,
+  UploadedFile
 } from '@/types';
 
 const API_BASE = '/api';
@@ -140,6 +141,57 @@ class ApiClient {
     const sanitizedId = id.replace(/[^a-zA-Z0-9-_]/g, '');
     const params = query ? `?query=${encodeURIComponent(query)}` : '';
     return this.request<AnalyticsResponse>(`/connectors/${sanitizedId}/data${params}`);
+  }
+
+  // File Upload Methods
+  async uploadFile(formData: FormData): Promise<UploadedFile> {
+    const url = `${API_BASE}/files`;
+    const token = this.getAuthToken();
+
+    const headers: Record<string, string> = {};
+
+    // Add auth token if available
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: formData,
+      credentials: 'same-origin',
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('auth_token');
+          window.location.href = '/login';
+        }
+      }
+
+      const error = await response.text();
+      const sanitizedError = error.replace(/<[^>]*>/g, '');
+      throw new Error(`Upload Error: ${response.status} - ${sanitizedError}`);
+    }
+
+    return response.json();
+  }
+
+  async getUploadedFiles(): Promise<UploadedFile[]> {
+    return this.request<UploadedFile[]>('/files');
+  }
+
+  async getUploadedFile(id: string): Promise<UploadedFile> {
+    const sanitizedId = id.replace(/[^a-zA-Z0-9-_]/g, '');
+    return this.request<UploadedFile>(`/files/${sanitizedId}`);
+  }
+
+  async deleteUploadedFile(id: string): Promise<{ success: boolean }> {
+    const sanitizedId = id.replace(/[^a-zA-Z0-9-_]/g, '');
+    return this.request<{ success: boolean }>(`/files/${sanitizedId}`, {
+      method: 'DELETE',
+    });
   }
 }
 
