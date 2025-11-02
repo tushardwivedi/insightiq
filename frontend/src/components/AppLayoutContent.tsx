@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Header from '@/components/Header'
-import StatusIndicator from '@/components/StatusIndicator'
+import CompactSystemStatus from '@/components/CompactSystemStatus'
 import ConnectorSidebar from '@/components/ConnectorSidebar'
 import { apiClient } from '@/lib/api'
 import { HealthCheck } from '@/types'
@@ -75,8 +75,8 @@ export default function AppLayoutContent({ children }: AppLayoutContentProps) {
       {/* Main Content - Adjust for collapsible sidebar */}
       <div className="flex-1 flex flex-col ml-0 lg:ml-16 transition-all duration-300 ease-in-out">
         {/* Sticky Header with sidebar toggle */}
-        <div className="sticky top-0 z-40 shadow-sm border-b" style={{ background: 'var(--surface-color)', borderColor: 'var(--border-color)' }}>
-          <div className="container mx-auto px-4 py-1">
+        <div className="sticky top-0 z-40 shadow-sm" style={{ background: 'var(--surface-color)' }}>
+          <div className="container mx-auto px-4">
             <div className="flex items-center gap-4">
               <button
                 onClick={handleOpenSidebar}
@@ -98,12 +98,12 @@ export default function AppLayoutContent({ children }: AppLayoutContentProps) {
                   <span className="text-xs">Hover left sidebar to expand</span>
                 </div>
               </div>
-              <div className="flex-1">
+              <div className="flex-1 flex items-center justify-between">
                 <Header />
+                <div className="ml-3">
+                  <CompactSystemStatus health={health} />
+                </div>
               </div>
-            </div>
-            <div className="mt-1">
-              <StatusIndicator health={health} />
             </div>
           </div>
         </div>
