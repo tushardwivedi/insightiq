@@ -266,8 +266,12 @@ func main() {
 	// Create planner service
 	plannerService := services.NewPlannerService(ollamaConn, connectorService, logger)
 
-	// Create HTTP server with query history
-	httpServer := httpserver.NewServer(analyticsService, voiceService, connectorService, plannerService, authService, queryHistoryRepo, logger) // Fixed: Use alias
+	// Initialize file upload repository and handler
+	fileUploadRepo := repository.NewUploadedFileRepository(db)
+	fileUploadHandler := httpserver.NewFileUploadHandler(fileUploadRepo, logger)
+
+	// Create HTTP server with query history and file upload
+	httpServer := httpserver.NewServer(analyticsService, voiceService, connectorService, plannerService, authService, queryHistoryRepo, fileUploadHandler, logger) // Fixed: Use alias
 
 	server := &http.Server{
 		Addr:              getEnvOrDefault("PORT", ":8080"),

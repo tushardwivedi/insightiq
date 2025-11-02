@@ -45,6 +45,9 @@ RUN apk update && apk upgrade && \
 # Create non-root user
 RUN adduser -D -g '' -s /sbin/nologin appuser
 
+# Create uploads directory for file uploads
+RUN mkdir -p /app/uploads && chown appuser:appuser /app/uploads
+
 # Copy binary with proper ownership
 COPY --from=builder --chown=appuser:appuser /app/main /app/main
 

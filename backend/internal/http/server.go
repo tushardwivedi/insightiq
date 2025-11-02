@@ -12,26 +12,28 @@ import (
 )
 
 type Server struct {
-	analyticsService  *services.AnalyticsService
-	voiceService      *services.VoiceService
-	connectorService  *services.ConnectorService
-	plannerService    *services.PlannerService
-	authService       *services.AuthService
-	queryHistoryRepo  interface{} // repository.QueryHistoryRepository
-	logger            *slog.Logger
-	mux               *http.ServeMux
+	analyticsService    *services.AnalyticsService
+	voiceService        *services.VoiceService
+	connectorService    *services.ConnectorService
+	plannerService      *services.PlannerService
+	authService         *services.AuthService
+	queryHistoryRepo    interface{} // repository.QueryHistoryRepository
+	fileUploadHandler   *FileUploadHandler
+	logger              *slog.Logger
+	mux                 *http.ServeMux
 }
 
-func NewServer(analytics *services.AnalyticsService, voice *services.VoiceService, connector *services.ConnectorService, planner *services.PlannerService, auth *services.AuthService, queryHistoryRepo interface{}, logger *slog.Logger) *Server {
+func NewServer(analytics *services.AnalyticsService, voice *services.VoiceService, connector *services.ConnectorService, planner *services.PlannerService, auth *services.AuthService, queryHistoryRepo interface{}, fileUploadHandler *FileUploadHandler, logger *slog.Logger) *Server {
 	s := &Server{
-		analyticsService: analytics,
-		voiceService:     voice,
-		connectorService: connector,
-		plannerService:   planner,
-		authService:      auth,
-		queryHistoryRepo: queryHistoryRepo,
-		logger:           logger,
-		mux:              http.NewServeMux(),
+		analyticsService:  analytics,
+		voiceService:      voice,
+		connectorService:  connector,
+		plannerService:    planner,
+		authService:       auth,
+		queryHistoryRepo:  queryHistoryRepo,
+		fileUploadHandler: fileUploadHandler,
+		logger:            logger,
+		mux:               http.NewServeMux(),
 	}
 
 	s.setupRoutes()
@@ -101,6 +103,53 @@ func (s *Server) setupRoutes() {
 		// Import needed in handler
 		s.mux.HandleFunc("/api/query-history", s.withAuth(s.handleQueryHistory))
 		s.mux.HandleFunc("/api/query-history/stats", s.withAuth(s.handleQueryHistoryStats))
+	}
+
+	// Protected file upload routes
+	if s.fileUploadHandler != nil {
+		s.mux.HandleFunc("/api/files", s.withAuth(s.routeFiles()))
+		s.mux.HandleFunc("/api/files/", s.withAuth(s.routeFilesByID()))
+	}
+}
+
+// routeFiles handles /api/files (collection endpoints)
+func (s *Server) routeFiles() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/files" {
+			http.NotFound(w, r)
+			return
+		}
+
+		switch r.Method {
+		case http.MethodGet:
+			s.fileUploadHandler.HandleList(w, r)
+		case http.MethodPost:
+			s.fileUploadHandler.HandleUpload(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	}
+}
+
+// routeFilesByID handles /api/files/{id} endpoints
+func (s *Server) routeFilesByID() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+
+		// Must be /api/files/{id}
+		if len(path) <= len("/api/files/") {
+			http.NotFound(w, r)
+			return
+		}
+
+		switch r.Method {
+		case http.MethodGet:
+			s.fileUploadHandler.HandleGetByID(w, r)
+		case http.MethodDelete:
+			s.fileUploadHandler.HandleDelete(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
 	}
 }
 

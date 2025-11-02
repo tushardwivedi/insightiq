@@ -129,3 +129,44 @@ INSERT INTO monthly_active_users (month_year, active_users, new_users, returning
 ('2024-09', 21800, 5000, 16800, 'North America', 'Mobile', '2024-09-30'),
 ('2024-09', 15900, 3700, 12200, 'Europe', 'Web', '2024-09-30'),
 ('2024-09', 11700, 2700, 9000, 'Europe', 'Mobile', '2024-09-30');
+
+-- Create function to update updated_at timestamp (if not exists)
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Create uploaded_files table for file upload feature
+CREATE TABLE IF NOT EXISTS uploaded_files (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    filename VARCHAR(255) NOT NULL,
+    original_filename VARCHAR(255) NOT NULL,
+    file_size BIGINT NOT NULL,
+    file_type VARCHAR(50) NOT NULL, -- 'csv', 'excel'
+    mime_type VARCHAR(100) NOT NULL,
+    storage_path TEXT NOT NULL, -- Local path or S3 URL
+    table_name VARCHAR(255) NOT NULL, -- Generated table name for data
+    schema_json JSONB NOT NULL, -- Column names and types
+    row_count INTEGER DEFAULT 0,
+    status VARCHAR(50) NOT NULL DEFAULT 'pending', -- pending, processing, completed, failed
+    error_message TEXT,
+    source VARCHAR(50) NOT NULL DEFAULT 'local', -- 'local', 'google_drive'
+    drive_file_id VARCHAR(255), -- Google Drive file ID
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    processed_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE INDEX IF NOT EXISTS idx_uploaded_files_user_id ON uploaded_files(user_id);
+CREATE INDEX IF NOT EXISTS idx_uploaded_files_status ON uploaded_files(status);
+CREATE INDEX IF NOT EXISTS idx_uploaded_files_table_name ON uploaded_files(table_name);
+
+-- Trigger to update updated_at
+CREATE TRIGGER update_uploaded_files_updated_at
+    BEFORE UPDATE ON uploaded_files
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
