@@ -159,7 +159,7 @@ class ApiClient {
       method: 'POST',
       headers,
       body: formData,
-      credentials: 'same-origin',
+      credentials: 'include',
     });
 
     if (!response.ok) {

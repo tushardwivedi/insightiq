@@ -19,37 +19,7 @@ export default function FileUploadModal({ isOpen, onClose, onUploadComplete }: P
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null)
 
-  if (!isOpen) return null
-
-  const handleDrag = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true)
-    } else if (e.type === 'dragleave') {
-      setDragActive(false)
-    }
-  }, [])
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setDragActive(false)
-
-    const files = e.dataTransfer.files
-    if (files && files.length > 0) {
-      handleUpload(files[0])
-    }
-  }, [])
-
-  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (files && files.length > 0) {
-      handleUpload(files[0])
-    }
-  }, [])
-
-  const handleUpload = async (file: File) => {
+  const handleUpload = useCallback(async (file: File) => {
     // Validate file type
     const validTypes = ['.csv', '.xlsx', '.xls']
     const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase()
@@ -102,7 +72,35 @@ export default function FileUploadModal({ isOpen, onClose, onUploadComplete }: P
     } finally {
       setUploading(false)
     }
-  }
+  }, [onUploadComplete])
+
+  const handleDrag = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActive(true)
+    } else if (e.type === 'dragleave') {
+      setDragActive(false)
+    }
+  }, [])
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(false)
+
+    const files = e.dataTransfer.files
+    if (files && files.length > 0) {
+      handleUpload(files[0])
+    }
+  }, [handleUpload])
+
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (files && files.length > 0) {
+      handleUpload(files[0])
+    }
+  }, [handleUpload])
 
   const handleClose = () => {
     setUploadStatus('idle')
@@ -111,6 +109,8 @@ export default function FileUploadModal({ isOpen, onClose, onUploadComplete }: P
     setUploadedFile(null)
     onClose()
   }
+
+  if (!isOpen) return null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">

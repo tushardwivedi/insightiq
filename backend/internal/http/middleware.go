@@ -49,7 +49,8 @@ func (s *Server) corsMiddleware(next http.Handler) http.Handler {
 		}
 
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, fdi-version, rid, anti-csrf, st-auth-mode")
+		w.Header().Set("Access-Control-Expose-Headers", "Content-Length, Content-Type, front-token, id-refresh-token, anti-csrf")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 		w.Header().Set("Access-Control-Max-Age", "3600")
 
@@ -70,7 +71,7 @@ func (s *Server) securityMiddleware(next http.Handler) http.Handler {
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("X-XSS-Protection", "1; mode=block")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'")
+		// Note: CSP is primarily set by frontend Next.js config
 
 		// Request size limit (10MB)
 		r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
