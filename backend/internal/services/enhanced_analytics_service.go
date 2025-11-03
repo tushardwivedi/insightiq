@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jmoiron/sqlx"
 	"insightiq/backend/internal/connectors"
 	"insightiq/backend/internal/models"
 )
@@ -18,6 +19,7 @@ type EnhancedAnalyticsService struct {
 	llmConn          *connectors.OllamaConnector
 	fallbackPostgres *connectors.PostgresConnector
 	fallbackSuperset *connectors.SuperSetConnector
+	db               *sqlx.DB
 	logger           *slog.Logger
 }
 
@@ -57,6 +59,7 @@ func NewEnhancedAnalyticsService(
 		llmConn:          llm,
 		fallbackPostgres: fallbackPostgres,
 		fallbackSuperset: fallbackSuperset,
+		db:               nil, // Will be set if needed for file upload queries
 		logger:           logger.With("service", "enhanced_analytics"),
 	}
 
@@ -64,6 +67,11 @@ func NewEnhancedAnalyticsService(
 	eas.plannerService = NewPlannerService(llm, connectorService, logger)
 
 	return eas
+}
+
+// SetDatabase sets the database connection for querying uploaded files
+func (eas *EnhancedAnalyticsService) SetDatabase(db *sqlx.DB) {
+	eas.db = db
 }
 
 // ProcessQuery intelligently routes queries to appropriate data sources with RAG
@@ -221,6 +229,8 @@ func (eas *EnhancedAnalyticsService) fetchDataFromSource(ctx context.Context, co
 		return eas.fetchFromSuperset(ctx, connector, query)
 	case models.ConnectorTypePostgres:
 		return eas.fetchFromPostgres(ctx, connector, query)
+	case models.ConnectorTypeFileUpload:
+		return eas.fetchFromUploadedFile(ctx, connector, query)
 	default:
 		return nil, fmt.Errorf("unsupported connector type: %s", connector.Type)
 	}
@@ -293,6 +303,67 @@ func (eas *EnhancedAnalyticsService) fetchFromPostgres(ctx context.Context, conn
 	// PostgreSQL connectors are disabled to prevent fallback to internal database
 	// All data should come from configured external connectors (Superset, etc.)
 	return nil, fmt.Errorf("PostgreSQL connectors are disabled. Please use configured external connectors (Superset, etc.) for data retrieval")
+}
+
+// fetchFromUploadedFile retrieves data from an uploaded file connector
+func (eas *EnhancedAnalyticsService) fetchFromUploadedFile(ctx context.Context, connector *models.DataConnector, query string) ([]map[string]interface{}, error) {
+	if eas.db == nil {
+		return nil, fmt.Errorf("database connection not available for file upload queries")
+	}
+
+	// Extract table name from connector config
+	tableName, ok := connector.Config["table_name"].(string)
+	if !ok || tableName == "" {
+		return nil, fmt.Errorf("table_name not found in file upload connector config")
+	}
+
+	eas.logger.Info("Fetching data from uploaded file",
+		"connector_name", connector.Name,
+		"table_name", tableName,
+		"query", query)
+
+	// Determine if query contains SQL or if we need to query all data
+	sqlQuery := query
+	if !strings.Contains(strings.ToUpper(query), "SELECT") {
+		// If no SELECT statement, query all data from the table
+		sqlQuery = fmt.Sprintf("SELECT * FROM %s LIMIT 1000", tableName)
+		eas.logger.Info("No SQL detected, querying all data from table", "sql", sqlQuery)
+	} else {
+		// Validate that the query references the correct table
+		if !strings.Contains(strings.ToLower(query), strings.ToLower(tableName)) {
+			eas.logger.Warn("Query doesn't reference table, adjusting query", "expected_table", tableName)
+			// This is a basic validation - in production you'd want more sophisticated parsing
+		}
+	}
+
+	// Execute the query
+	rows, err := eas.db.QueryxContext(ctx, sqlQuery)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute query on uploaded file table: %w", err)
+	}
+	defer rows.Close()
+
+	// Convert rows to map slice
+	var results []map[string]interface{}
+	for rows.Next() {
+		row := make(map[string]interface{})
+		if err := rows.MapScan(row); err != nil {
+			eas.logger.Error("Failed to scan row", "error", err)
+			continue
+		}
+		results = append(results, row)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating query results: %w", err)
+	}
+
+	eas.logger.Info("Successfully retrieved data from uploaded file",
+		"connector_name", connector.Name,
+		"table_name", tableName,
+		"rows", len(results))
+
+	return results, nil
 }
 
 // fetchFromFallbackSources is disabled to prevent any fallback to internal databases
@@ -412,9 +483,9 @@ func (eas *EnhancedAnalyticsService) selectDataSourcesFromIntent(
 		}
 
 	case models.IntentTypeSQL:
-		// Prefer PostgreSQL for direct SQL queries
+		// Prefer uploaded files and PostgreSQL for direct SQL queries
 		for _, connector := range activeConnectors {
-			if connector.Type == models.ConnectorTypePostgres {
+			if connector.Type == models.ConnectorTypeFileUpload || connector.Type == models.ConnectorTypePostgres {
 				relevantSources = append(relevantSources, connector)
 			}
 		}
@@ -434,9 +505,9 @@ func (eas *EnhancedAnalyticsService) selectDataSourcesFromIntent(
 				}
 			}
 		} else {
-			// Use PostgreSQL for detailed analytics
+			// Use uploaded files and PostgreSQL for detailed analytics
 			for _, connector := range activeConnectors {
-				if connector.Type == models.ConnectorTypePostgres {
+				if connector.Type == models.ConnectorTypeFileUpload || connector.Type == models.ConnectorTypePostgres {
 					relevantSources = append(relevantSources, connector)
 				}
 			}

@@ -21,6 +21,7 @@ export default function ConnectorSidebar({ isOpen, onClose }: ConnectorSidebarPr
   const [isHovered, setIsHovered] = useState(false)
   const [showFileUploadModal, setShowFileUploadModal] = useState(false)
   const [fileListRefreshTrigger, setFileListRefreshTrigger] = useState(0)
+  const [uploadedFilesCount, setUploadedFilesCount] = useState(0)
 
   const loadConnectors = useCallback(async () => {
     try {
@@ -315,11 +316,18 @@ export default function ConnectorSidebar({ isOpen, onClose }: ConnectorSidebarPr
                     />
                   ) : selectedConnectorType === 'file_upload' ? (
                     <div>
-                      <h3 className="text-md font-medium mb-4" style={{ color: 'var(--text-primary)' }}>
-                        File Upload
-                      </h3>
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-md font-medium" style={{ color: 'var(--text-primary)' }}>
+                          File Upload
+                        </h3>
+                        {uploadedFilesCount > 0 && (
+                          <span className="text-xs px-2 py-1 rounded-full font-medium" style={{ background: 'var(--hover-surface)', color: 'var(--text-secondary)' }}>
+                            {uploadedFilesCount} file{uploadedFilesCount !== 1 ? 's' : ''}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
-                        Upload CSV or Excel files to query with SQL. Your files will be stored securely and only visible to you.
+                        Upload CSV or Excel files to query with SQL. Copy the table name and use it in your queries.
                       </p>
                       <button
                         onClick={() => setShowFileUploadModal(true)}
@@ -333,7 +341,10 @@ export default function ConnectorSidebar({ isOpen, onClose }: ConnectorSidebarPr
                         </svg>
                         Upload New File
                       </button>
-                      <UploadedFilesList refreshTrigger={fileListRefreshTrigger} />
+                      <UploadedFilesList
+                        refreshTrigger={fileListRefreshTrigger}
+                        onCountChange={setUploadedFilesCount}
+                      />
                     </div>
                   ) : (
                     <div className="text-center py-8" style={{ color: 'var(--text-secondary)' }}>

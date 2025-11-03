@@ -44,7 +44,10 @@ func (r *ConnectorRepository) CreateTables(ctx context.Context) error {
 // Create creates a new data connector
 func (r *ConnectorRepository) Create(ctx context.Context, connector *models.DataConnector) error {
 	connector.ID = uuid.New().String()
-	connector.Status = models.ConnectorStatusDisconnected
+	// Only set disconnected status if not already set
+	if connector.Status == "" {
+		connector.Status = models.ConnectorStatusDisconnected
+	}
 	connector.CreatedAt = time.Now()
 	connector.UpdatedAt = time.Now()
 

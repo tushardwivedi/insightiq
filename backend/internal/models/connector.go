@@ -10,11 +10,12 @@ import (
 type ConnectorType string
 
 const (
-	ConnectorTypeSuperset ConnectorType = "superset"
-	ConnectorTypePostgres ConnectorType = "postgres"
-	ConnectorTypeMySQL    ConnectorType = "mysql"
-	ConnectorTypeMongoDB  ConnectorType = "mongodb"
-	ConnectorTypeAPI      ConnectorType = "api"
+	ConnectorTypeSuperset   ConnectorType = "superset"
+	ConnectorTypePostgres   ConnectorType = "postgres"
+	ConnectorTypeMySQL      ConnectorType = "mysql"
+	ConnectorTypeMongoDB    ConnectorType = "mongodb"
+	ConnectorTypeAPI        ConnectorType = "api"
+	ConnectorTypeFileUpload ConnectorType = "file_upload"
 )
 
 type ConnectorStatus string

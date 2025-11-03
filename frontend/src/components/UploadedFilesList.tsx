@@ -7,9 +7,10 @@ import { UploadedFile } from '@/types'
 
 interface Props {
   refreshTrigger?: number
+  onCountChange?: (count: number) => void
 }
 
-export default function UploadedFilesList({ refreshTrigger }: Props) {
+export default function UploadedFilesList({ refreshTrigger, onCountChange }: Props) {
   const [files, setFiles] = useState<UploadedFile[]>([])
   const [loading, setLoading] = useState(true)
   const [copiedTable, setCopiedTable] = useState<string | null>(null)
@@ -23,6 +24,9 @@ export default function UploadedFilesList({ refreshTrigger }: Props) {
       setLoading(true)
       const data = await apiClient.getUploadedFiles()
       setFiles(data)
+      if (onCountChange) {
+        onCountChange(data.length)
+      }
     } catch (error) {
       console.error('Failed to load files:', error)
     } finally {
@@ -37,7 +41,11 @@ export default function UploadedFilesList({ refreshTrigger }: Props) {
 
     try {
       await apiClient.deleteUploadedFile(file.id)
-      setFiles(files.filter(f => f.id !== file.id))
+      const updatedFiles = files.filter(f => f.id !== file.id)
+      setFiles(updatedFiles)
+      if (onCountChange) {
+        onCountChange(updatedFiles.length)
+      }
     } catch (error) {
       console.error('Failed to delete file:', error)
       alert('Failed to delete file. Please try again.')
@@ -140,30 +148,40 @@ export default function UploadedFilesList({ refreshTrigger }: Props) {
                     </span>
                   </div>
 
-                  {/* Table Name */}
-                  <div className="mt-2 flex items-center gap-2">
+                  {/* Table Name - For Query Use */}
+                  <div className="mt-2">
+                    <p className="text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>
+                      Table name (click to copy):
+                    </p>
                     <button
                       onClick={() => handleCopyTable(file.table_name)}
-                      className="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-mono transition-all"
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-mono transition-all w-full"
                       style={{
                         background: 'var(--primary-background)',
                         color: 'var(--text-primary)',
-                        border: '1px solid var(--border-color)'
+                        border: '1px solid var(--border-color)',
+                        cursor: 'pointer'
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--accent-color)'}
-                      onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border-color)'}
-                      title="Click to copy table name"
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--accent-color)'
+                        e.currentTarget.style.background = 'var(--hover-surface)'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--border-color)'
+                        e.currentTarget.style.background = 'var(--primary-background)'
+                      }}
+                      title="Click to copy table name for queries"
                     >
                       {isCopied ? (
                         <>
                           <CheckCircle className="w-3 h-3" style={{ color: '#10b981' }} />
-                          <span>Copied!</span>
+                          <span style={{ color: '#10b981' }}>Copied to clipboard!</span>
                         </>
                       ) : (
                         <>
                           <Database className="w-3 h-3" />
-                          <span>{file.table_name}</span>
-                          <Copy className="w-3 h-3" />
+                          <span className="truncate flex-1 text-left">{file.table_name}</span>
+                          <Copy className="w-3 h-3 flex-shrink-0" />
                         </>
                       )}
                     </button>

@@ -382,7 +382,18 @@ func (as *AnalyticsService) processSupersetQuery(ctx context.Context, query stri
 
 	if len(data) == 0 {
 		if len(supersetConnectors) == 0 {
-			return nil, fmt.Errorf("no Superset connectors configured. Please add a Superset connector to fetch analytics data")
+			// No Superset connectors - try file upload connectors as fallback
+			as.logger.Info("No Superset connectors found, checking for file upload connectors")
+
+			fileConnectors, err := as.connectorService.GetConnectorsByType(ctx, models.ConnectorTypeFileUpload)
+			if err == nil && len(fileConnectors) > 0 {
+				as.logger.Info("Found file upload connectors, attempting to query", "count", len(fileConnectors))
+
+				// Try to detect table name from query
+				return as.processFileUploadQuery(ctx, query, fileConnectors)
+			}
+
+			return nil, fmt.Errorf("no Superset connectors configured. Please add a Superset connector or upload a file to query data")
 		}
 
 		// Check if connectors are connected
@@ -507,6 +518,40 @@ func (as *AnalyticsService) querySupersetConnector(ctx context.Context, connecto
 
 	as.logger.Info("✅ Superset query executed successfully", "dashboard", dashTitle, "rows", len(result.Data))
 	return result.Data, nil
+}
+
+// processFileUploadQuery processes a query against uploaded file connectors
+func (as *AnalyticsService) processFileUploadQuery(ctx context.Context, query string, fileConnectors []*models.DataConnector) (*AnalyticsResponse, error) {
+	start := time.Now()
+	taskID := generateTaskID()
+
+	as.logger.Info("Processing file upload query", "task_id", taskID, "query", query, "connector_count", len(fileConnectors))
+
+	// Use enhanced analytics service to query file uploads
+	if as.enhancedAnalytics == nil {
+		return nil, fmt.Errorf("enhanced analytics service not available for file upload queries")
+	}
+
+	req := &EnhancedAnalyticsRequest{
+		Query: query,
+	}
+
+	response, err := as.enhancedAnalytics.ProcessQuery(ctx, req)
+	if err != nil {
+		as.logger.Error("Failed to process file upload query", "error", err)
+		return nil, fmt.Errorf("failed to query uploaded files: %w", err)
+	}
+
+	// Convert EnhancedAnalyticsResponse to AnalyticsResponse
+	return &AnalyticsResponse{
+		Query:       query,
+		Data:        response.Data,
+		Insights:    response.Analysis,
+		Timestamp:   start,
+		ProcessTime: time.Since(start),
+		TaskID:      taskID,
+		Status:      "completed",
+	}, nil
 }
 
 // IntentType represents different types of user intents

@@ -230,6 +230,7 @@ func main() {
 
 	// Create enhanced analytics service (connector-only architecture)
 	enhancedAnalyticsService := services.NewEnhancedAnalyticsService(connectorService, ollamaConn, nil, nil, logger)
+	enhancedAnalyticsService.SetDatabase(db) // Set database for file upload queries
 
 	// Create and register agents (PostgreSQL connections disabled - using connector-only architecture)
 	analyticsAgent := agent.NewAnalyticsAgent("analytics-1", nil, nil, ollamaConn, logger)
@@ -266,9 +267,12 @@ func main() {
 	// Create planner service
 	plannerService := services.NewPlannerService(ollamaConn, connectorService, logger)
 
+	// Initialize file data ingestion service for vector embeddings
+	fileDataIngestionService := services.NewFileDataIngestionService(db, vectorStore, embeddingService, logger)
+
 	// Initialize file upload repository, processor and handler
 	fileUploadRepo := repository.NewUploadedFileRepository(db)
-	fileProcessor := services.NewFileProcessor(db, fileUploadRepo)
+	fileProcessor := services.NewFileProcessor(db, fileUploadRepo, connectorRepo, fileDataIngestionService)
 	fileUploadHandler := httpserver.NewFileUploadHandler(fileUploadRepo, fileProcessor, logger)
 
 	// Create HTTP server with query history and file upload

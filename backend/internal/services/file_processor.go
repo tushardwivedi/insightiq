@@ -24,14 +24,18 @@ const (
 )
 
 type FileProcessor struct {
-	db       *sqlx.DB
-	fileRepo *repository.UploadedFileRepository
+	db                    *sqlx.DB
+	fileRepo              *repository.UploadedFileRepository
+	connectorRepo         *repository.ConnectorRepository
+	dataIngestionService  *FileDataIngestionService
 }
 
-func NewFileProcessor(db *sqlx.DB, fileRepo *repository.UploadedFileRepository) *FileProcessor {
+func NewFileProcessor(db *sqlx.DB, fileRepo *repository.UploadedFileRepository, connectorRepo *repository.ConnectorRepository, dataIngestionService *FileDataIngestionService) *FileProcessor {
 	return &FileProcessor{
-		db:       db,
-		fileRepo: fileRepo,
+		db:                   db,
+		fileRepo:             fileRepo,
+		connectorRepo:        connectorRepo,
+		dataIngestionService: dataIngestionService,
 	}
 }
 
@@ -74,6 +78,25 @@ func (fp *FileProcessor) ProcessFile(ctx context.Context, file *models.UploadedF
 	if err := fp.fileRepo.UpdateFileMetadata(ctx, file); err != nil {
 		slog.Error("Failed to update file status to completed", "error", err)
 		return err
+	}
+
+	// Create virtual connector for the uploaded file
+	if err := fp.createVirtualConnector(ctx, file); err != nil {
+		slog.Error("Failed to create virtual connector", "file_id", file.ID, "error", err)
+		// Don't fail the processing if connector creation fails - file is still usable
+	}
+
+	// Ingest file data into vector store for RAG queries
+	if fp.dataIngestionService != nil {
+		slog.Info("Starting vector ingestion for file data", "file_id", file.ID)
+		if err := fp.dataIngestionService.IngestFileData(ctx, file); err != nil {
+			slog.Error("Failed to ingest file data into vector store", "file_id", file.ID, "error", err)
+			// Don't fail the processing - SQL queries will still work
+		} else {
+			slog.Info("Vector ingestion completed successfully", "file_id", file.ID)
+		}
+	} else {
+		slog.Warn("Data ingestion service not available, skipping vector ingestion", "file_id", file.ID)
 	}
 
 	slog.Info("File processing completed successfully", "file_id", file.ID, "table_name", file.TableName)
@@ -458,4 +481,52 @@ func (fp *FileProcessor) ProcessFileAsync(file *models.UploadedFile) {
 			slog.Error("Background file processing failed", "file_id", file.ID, "error", err)
 		}
 	}()
+}
+
+// createVirtualConnector creates a virtual file_upload connector for the uploaded file
+// This allows the query system to treat uploaded files as queryable data sources
+func (fp *FileProcessor) createVirtualConnector(ctx context.Context, file *models.UploadedFile) error {
+	// Check if connector already exists for this file
+	connectors, err := fp.connectorRepo.GetByType(ctx, models.ConnectorTypeFileUpload)
+	if err != nil {
+		return fmt.Errorf("failed to get existing file upload connectors: %w", err)
+	}
+
+	// Check if this file already has a connector
+	for _, conn := range connectors {
+		if fileID, ok := conn.Config["file_id"].(string); ok && fileID == file.ID.String() {
+			slog.Info("Virtual connector already exists for file", "file_id", file.ID, "connector_id", conn.ID)
+			return nil
+		}
+	}
+
+	// Create connector config with file metadata
+	config := models.ConnectorConfig{
+		"table_name":        file.TableName,
+		"file_id":           file.ID.String(),
+		"original_filename": file.OriginalFilename,
+		"row_count":         file.RowCount,
+		"file_type":         file.FileType,
+		"schema":            file.SchemaJSON,
+	}
+
+	// Create the virtual connector
+	connector := &models.DataConnector{
+		Name:   file.OriginalFilename,
+		Type:   models.ConnectorTypeFileUpload,
+		Status: models.ConnectorStatusConnected,
+		Config: config,
+	}
+
+	if err := fp.connectorRepo.Create(ctx, connector); err != nil {
+		return fmt.Errorf("failed to create virtual connector: %w", err)
+	}
+
+	slog.Info("Created virtual connector for uploaded file",
+		"file_id", file.ID,
+		"connector_id", connector.ID,
+		"table_name", file.TableName,
+		"filename", file.OriginalFilename)
+
+	return nil
 }
