@@ -266,9 +266,10 @@ func main() {
 	// Create planner service
 	plannerService := services.NewPlannerService(ollamaConn, connectorService, logger)
 
-	// Initialize file upload repository and handler
+	// Initialize file upload repository, processor and handler
 	fileUploadRepo := repository.NewUploadedFileRepository(db)
-	fileUploadHandler := httpserver.NewFileUploadHandler(fileUploadRepo, logger)
+	fileProcessor := services.NewFileProcessor(db, fileUploadRepo)
+	fileUploadHandler := httpserver.NewFileUploadHandler(fileUploadRepo, fileProcessor, logger)
 
 	// Create HTTP server with query history and file upload
 	httpServer := httpserver.NewServer(analyticsService, voiceService, connectorService, plannerService, authService, queryHistoryRepo, fileUploadHandler, logger) // Fixed: Use alias

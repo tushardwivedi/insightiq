@@ -13,6 +13,7 @@ import (
 
 	"insightiq/backend/internal/models"
 	"insightiq/backend/internal/repository"
+	"insightiq/backend/internal/services"
 
 	"github.com/google/uuid"
 )
@@ -24,15 +25,17 @@ const (
 
 // FileUploadHandler handles file upload operations
 type FileUploadHandler struct {
-	fileRepo *repository.UploadedFileRepository
-	logger   *slog.Logger
+	fileRepo      *repository.UploadedFileRepository
+	fileProcessor *services.FileProcessor
+	logger        *slog.Logger
 }
 
 // NewFileUploadHandler creates a new FileUploadHandler
-func NewFileUploadHandler(fileRepo *repository.UploadedFileRepository, logger *slog.Logger) *FileUploadHandler {
+func NewFileUploadHandler(fileRepo *repository.UploadedFileRepository, fileProcessor *services.FileProcessor, logger *slog.Logger) *FileUploadHandler {
 	return &FileUploadHandler{
-		fileRepo: fileRepo,
-		logger:   logger,
+		fileRepo:      fileRepo,
+		fileProcessor: fileProcessor,
+		logger:        logger,
 	}
 }
 
@@ -135,8 +138,8 @@ func (h *FileUploadHandler) HandleUpload(w http.ResponseWriter, r *http.Request)
 
 	h.logger.Info("File uploaded successfully", "file_id", uploadedFile.ID, "filename", uploadedFile.OriginalFilename)
 
-	// TODO: Trigger async file processing
-	// go h.processFile(uploadedFile)
+	// Trigger async file processing
+	h.fileProcessor.ProcessFileAsync(uploadedFile)
 
 	respondJSON(w, http.StatusCreated, uploadedFile)
 }

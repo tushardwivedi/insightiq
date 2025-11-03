@@ -1,0 +1,461 @@
+package services
+
+import (
+	"context"
+	"encoding/csv"
+	"fmt"
+	"io"
+	"log/slog"
+	"os"
+	"regexp"
+	"strings"
+	"time"
+
+	"github.com/jmoiron/sqlx"
+	"github.com/xuri/excelize/v2"
+	"insightiq/backend/internal/models"
+	"insightiq/backend/internal/repository"
+)
+
+const (
+	BatchSize        = 1000
+	MaxRowsToSample  = 100
+	MaxColumnNameLen = 63 // PostgreSQL identifier length limit
+)
+
+type FileProcessor struct {
+	db       *sqlx.DB
+	fileRepo *repository.UploadedFileRepository
+}
+
+func NewFileProcessor(db *sqlx.DB, fileRepo *repository.UploadedFileRepository) *FileProcessor {
+	return &FileProcessor{
+		db:       db,
+		fileRepo: fileRepo,
+	}
+}
+
+// ProcessFile is the main entry point for file processing
+func (fp *FileProcessor) ProcessFile(ctx context.Context, file *models.UploadedFile) error {
+	slog.Info("Starting file processing", "file_id", file.ID, "filename", file.OriginalFilename)
+
+	// Update status to processing
+	file.Status = "processing"
+	if err := fp.fileRepo.UpdateStatus(ctx, file.ID, "processing", nil); err != nil {
+		slog.Error("Failed to update file status to processing", "error", err)
+		return err
+	}
+
+	var processErr error
+	switch file.FileType {
+	case "csv":
+		processErr = fp.processCSV(ctx, file)
+	case "excel":
+		processErr = fp.processExcel(ctx, file)
+	default:
+		processErr = fmt.Errorf("unsupported file type: %s", file.FileType)
+	}
+
+	if processErr != nil {
+		slog.Error("File processing failed", "file_id", file.ID, "error", processErr)
+		file.Status = "failed"
+		errMsg := processErr.Error()
+		file.ErrorMessage = &errMsg
+		if err := fp.fileRepo.UpdateStatus(ctx, file.ID, "failed", &errMsg); err != nil {
+			slog.Error("Failed to update file status to failed", "error", err)
+		}
+		return processErr
+	}
+
+	// Update status to completed
+	file.Status = "completed"
+	now := time.Now()
+	file.ProcessedAt = &now
+	if err := fp.fileRepo.UpdateFileMetadata(ctx, file); err != nil {
+		slog.Error("Failed to update file status to completed", "error", err)
+		return err
+	}
+
+	slog.Info("File processing completed successfully", "file_id", file.ID, "table_name", file.TableName)
+	return nil
+}
+
+// processCSV handles CSV file processing
+func (fp *FileProcessor) processCSV(ctx context.Context, file *models.UploadedFile) error {
+	f, err := os.Open(file.StoragePath)
+	if err != nil {
+		return fmt.Errorf("failed to open CSV file: %w", err)
+	}
+	defer f.Close()
+
+	reader := csv.NewReader(f)
+	reader.LazyQuotes = true
+	reader.TrimLeadingSpace = true
+
+	// Read header
+	headers, err := reader.Read()
+	if err != nil {
+		return fmt.Errorf("failed to read CSV header: %w", err)
+	}
+
+	// Sanitize column names
+	sanitizedHeaders := make([]string, len(headers))
+	for i, h := range headers {
+		sanitizedHeaders[i] = fp.sanitizeColumnName(h)
+	}
+
+	// Sample data for schema detection
+	var sampleData [][]string
+	for i := 0; i < MaxRowsToSample; i++ {
+		row, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("failed to read CSV row: %w", err)
+		}
+		sampleData = append(sampleData, row)
+	}
+
+	// Detect schema
+	schema := fp.detectSchema(sanitizedHeaders, sampleData)
+	file.SchemaJSON = models.FileSchema{Columns: schema}
+
+	// Create table
+	if err := fp.createTable(ctx, file.TableName, schema); err != nil {
+		return fmt.Errorf("failed to create table: %w", err)
+	}
+
+	// Reset file reader to beginning (skip header)
+	if _, err := f.Seek(0, 0); err != nil {
+		return fmt.Errorf("failed to reset file reader: %w", err)
+	}
+	reader = csv.NewReader(f)
+	reader.LazyQuotes = true
+	reader.TrimLeadingSpace = true
+	reader.Read() // skip header
+
+	// Insert data in batches
+	rowCount, err := fp.insertCSVData(ctx, file.TableName, sanitizedHeaders, reader)
+	if err != nil {
+		return fmt.Errorf("failed to insert data: %w", err)
+	}
+
+	file.RowCount = rowCount
+	return nil
+}
+
+// processExcel handles Excel file processing
+func (fp *FileProcessor) processExcel(ctx context.Context, file *models.UploadedFile) error {
+	f, err := excelize.OpenFile(file.StoragePath)
+	if err != nil {
+		return fmt.Errorf("failed to open Excel file: %w", err)
+	}
+	defer f.Close()
+
+	// Get first sheet (we'll process only the first sheet for now)
+	sheets := f.GetSheetList()
+	if len(sheets) == 0 {
+		return fmt.Errorf("no sheets found in Excel file")
+	}
+
+	sheetName := sheets[0]
+	rows, err := f.GetRows(sheetName)
+	if err != nil {
+		return fmt.Errorf("failed to read Excel rows: %w", err)
+	}
+
+	if len(rows) == 0 {
+		return fmt.Errorf("Excel file is empty")
+	}
+
+	// First row is header
+	headers := rows[0]
+	sanitizedHeaders := make([]string, len(headers))
+	for i, h := range headers {
+		sanitizedHeaders[i] = fp.sanitizeColumnName(h)
+	}
+
+	// Sample data for schema detection
+	sampleData := rows[1:]
+	if len(sampleData) > MaxRowsToSample {
+		sampleData = sampleData[:MaxRowsToSample]
+	}
+
+	// Detect schema
+	schema := fp.detectSchema(sanitizedHeaders, sampleData)
+	file.SchemaJSON = models.FileSchema{Columns: schema}
+
+	// Create table
+	if err := fp.createTable(ctx, file.TableName, schema); err != nil {
+		return fmt.Errorf("failed to create table: %w", err)
+	}
+
+	// Insert data in batches
+	rowCount, err := fp.insertExcelData(ctx, file.TableName, sanitizedHeaders, rows[1:])
+	if err != nil {
+		return fmt.Errorf("failed to insert data: %w", err)
+	}
+
+	file.RowCount = rowCount
+	return nil
+}
+
+// sanitizeColumnName ensures column names are valid PostgreSQL identifiers
+func (fp *FileProcessor) sanitizeColumnName(name string) string {
+	// Remove leading/trailing whitespace
+	name = strings.TrimSpace(name)
+
+	// Replace spaces and special characters with underscores
+	reg := regexp.MustCompile(`[^a-zA-Z0-9_]`)
+	name = reg.ReplaceAllString(name, "_")
+
+	// Remove consecutive underscores
+	reg = regexp.MustCompile(`_+`)
+	name = reg.ReplaceAllString(name, "_")
+
+	// Ensure it starts with a letter or underscore
+	if len(name) > 0 && !regexp.MustCompile(`^[a-zA-Z_]`).MatchString(name) {
+		name = "col_" + name
+	}
+
+	// Convert to lowercase
+	name = strings.ToLower(name)
+
+	// Truncate if too long
+	if len(name) > MaxColumnNameLen {
+		name = name[:MaxColumnNameLen]
+	}
+
+	// Handle empty names
+	if name == "" {
+		name = "column"
+	}
+
+	return name
+}
+
+// detectSchema analyzes sample data to determine column types
+func (fp *FileProcessor) detectSchema(headers []string, sampleData [][]string) []models.ColumnInfo {
+	schema := make([]models.ColumnInfo, len(headers))
+
+	for i, header := range headers {
+		columnType := "TEXT" // Default type
+		nullable := true
+
+		// Analyze column values
+		hasNonEmpty := false
+		allIntegers := true
+		allFloats := true
+		allBooleans := true
+		allDates := true
+
+		for _, row := range sampleData {
+			if i >= len(row) {
+				continue
+			}
+
+			value := strings.TrimSpace(row[i])
+			if value == "" {
+				continue
+			}
+
+			hasNonEmpty = true
+
+			// Check if integer
+			if allIntegers && !regexp.MustCompile(`^-?\d+$`).MatchString(value) {
+				allIntegers = false
+			}
+
+			// Check if float
+			if allFloats && !regexp.MustCompile(`^-?\d+\.?\d*$`).MatchString(value) {
+				allFloats = false
+			}
+
+			// Check if boolean
+			if allBooleans {
+				lowerValue := strings.ToLower(value)
+				if lowerValue != "true" && lowerValue != "false" && lowerValue != "1" && lowerValue != "0" && lowerValue != "yes" && lowerValue != "no" {
+					allBooleans = false
+				}
+			}
+
+			// Check if date
+			if allDates {
+				if !fp.isDate(value) {
+					allDates = false
+				}
+			}
+		}
+
+		// Determine type based on analysis
+		if hasNonEmpty {
+			if allIntegers {
+				columnType = "INTEGER"
+			} else if allFloats {
+				columnType = "NUMERIC"
+			} else if allBooleans {
+				columnType = "BOOLEAN"
+			} else if allDates {
+				columnType = "TIMESTAMP"
+			}
+		}
+
+		schema[i] = models.ColumnInfo{
+			Name:     header,
+			Type:     columnType,
+			Nullable: nullable,
+		}
+	}
+
+	return schema
+}
+
+// isDate checks if a string can be parsed as a date
+func (fp *FileProcessor) isDate(value string) bool {
+	dateFormats := []string{
+		"2006-01-02",
+		"2006-01-02 15:04:05",
+		"01/02/2006",
+		"02-01-2006",
+		time.RFC3339,
+	}
+
+	for _, format := range dateFormats {
+		if _, err := time.Parse(format, value); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+// createTable creates a new table with the detected schema
+func (fp *FileProcessor) createTable(ctx context.Context, tableName string, schema []models.ColumnInfo) error {
+	var columns []string
+	for _, col := range schema {
+		nullConstraint := "NULL"
+		if !col.Nullable {
+			nullConstraint = "NOT NULL"
+		}
+		columns = append(columns, fmt.Sprintf("%s %s %s", col.Name, col.Type, nullConstraint))
+	}
+
+	createSQL := fmt.Sprintf(
+		"CREATE TABLE IF NOT EXISTS %s (%s)",
+		tableName,
+		strings.Join(columns, ", "),
+	)
+
+	slog.Info("Creating table", "table_name", tableName, "sql", createSQL)
+
+	if _, err := fp.db.ExecContext(ctx, createSQL); err != nil {
+		return fmt.Errorf("failed to create table: %w", err)
+	}
+
+	return nil
+}
+
+// insertCSVData inserts CSV data in batches
+func (fp *FileProcessor) insertCSVData(ctx context.Context, tableName string, headers []string, reader *csv.Reader) (int, error) {
+	totalRows := 0
+	batch := make([][]string, 0, BatchSize)
+
+	for {
+		row, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return totalRows, fmt.Errorf("failed to read CSV row: %w", err)
+		}
+
+		batch = append(batch, row)
+
+		if len(batch) >= BatchSize {
+			if err := fp.insertBatch(ctx, tableName, headers, batch); err != nil {
+				return totalRows, err
+			}
+			totalRows += len(batch)
+			batch = batch[:0]
+		}
+	}
+
+	// Insert remaining rows
+	if len(batch) > 0 {
+		if err := fp.insertBatch(ctx, tableName, headers, batch); err != nil {
+			return totalRows, err
+		}
+		totalRows += len(batch)
+	}
+
+	return totalRows, nil
+}
+
+// insertExcelData inserts Excel data in batches
+func (fp *FileProcessor) insertExcelData(ctx context.Context, tableName string, headers []string, rows [][]string) (int, error) {
+	totalRows := 0
+
+	for i := 0; i < len(rows); i += BatchSize {
+		end := i + BatchSize
+		if end > len(rows) {
+			end = len(rows)
+		}
+
+		batch := rows[i:end]
+		if err := fp.insertBatch(ctx, tableName, headers, batch); err != nil {
+			return totalRows, err
+		}
+		totalRows += len(batch)
+	}
+
+	return totalRows, nil
+}
+
+// insertBatch inserts a batch of rows into the table
+func (fp *FileProcessor) insertBatch(ctx context.Context, tableName string, headers []string, batch [][]string) error {
+	if len(batch) == 0 {
+		return nil
+	}
+
+	// Build INSERT statement with placeholders
+	placeholders := make([]string, len(batch))
+	values := make([]interface{}, 0, len(batch)*len(headers))
+
+	for i, row := range batch {
+		rowPlaceholders := make([]string, len(headers))
+		for j := range headers {
+			var value interface{}
+			if j < len(row) && row[j] != "" {
+				value = row[j]
+			} else {
+				value = nil
+			}
+			values = append(values, value)
+			rowPlaceholders[j] = fmt.Sprintf("$%d", i*len(headers)+j+1)
+		}
+		placeholders[i] = fmt.Sprintf("(%s)", strings.Join(rowPlaceholders, ", "))
+	}
+
+	insertSQL := fmt.Sprintf(
+		"INSERT INTO %s (%s) VALUES %s",
+		tableName,
+		strings.Join(headers, ", "),
+		strings.Join(placeholders, ", "),
+	)
+
+	if _, err := fp.db.ExecContext(ctx, insertSQL, values...); err != nil {
+		return fmt.Errorf("failed to insert batch: %w", err)
+	}
+
+	return nil
+}
+
+// ProcessFileAsync processes a file in the background
+func (fp *FileProcessor) ProcessFileAsync(file *models.UploadedFile) {
+	go func() {
+		ctx := context.Background()
+		if err := fp.ProcessFile(ctx, file); err != nil {
+			slog.Error("Background file processing failed", "file_id", file.ID, "error", err)
+		}
+	}()
+}
