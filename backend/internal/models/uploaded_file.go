@@ -10,24 +10,29 @@ import (
 
 // UploadedFile represents a file uploaded by a user
 type UploadedFile struct {
-	ID               uuid.UUID  `json:"id" db:"id"`
-	UserID           uuid.UUID  `json:"user_id" db:"user_id"`
-	Filename         string     `json:"filename" db:"filename"`
-	OriginalFilename string     `json:"original_filename" db:"original_filename"`
-	FileSize         int64      `json:"file_size" db:"file_size"`
-	FileType         string     `json:"file_type" db:"file_type"` // csv, excel
-	MimeType         string     `json:"mime_type" db:"mime_type"`
-	StoragePath      string     `json:"storage_path" db:"storage_path"`
-	TableName        string     `json:"table_name" db:"table_name"`
-	SchemaJSON       FileSchema `json:"schema_json" db:"schema_json"`
-	RowCount         int        `json:"row_count" db:"row_count"`
-	Status           string     `json:"status" db:"status"` // pending, processing, completed, failed
-	ErrorMessage     *string    `json:"error_message,omitempty" db:"error_message"`
-	Source           string     `json:"source" db:"source"` // local, google_drive
-	DriveFileID      *string    `json:"drive_file_id,omitempty" db:"drive_file_id"`
-	CreatedAt        time.Time  `json:"created_at" db:"created_at"`
-	UpdatedAt        time.Time  `json:"updated_at" db:"updated_at"`
-	ProcessedAt      *time.Time `json:"processed_at,omitempty" db:"processed_at"`
+	ID                  uuid.UUID  `json:"id" db:"id"`
+	UserID              uuid.UUID  `json:"user_id" db:"user_id"`
+	Filename            string     `json:"filename" db:"filename"`
+	OriginalFilename    string     `json:"original_filename" db:"original_filename"`
+	FileSize            int64      `json:"file_size" db:"file_size"`
+	FileType            string     `json:"file_type" db:"file_type"` // csv, excel
+	MimeType            string     `json:"mime_type" db:"mime_type"`
+	StoragePath         string     `json:"storage_path" db:"storage_path"`
+	TableName           string     `json:"table_name" db:"table_name"`
+	SchemaJSON          FileSchema `json:"schema_json" db:"schema_json"`
+	RowCount            int        `json:"row_count" db:"row_count"`
+	Status              string     `json:"status" db:"status"` // pending, processing, completed, failed
+	ErrorMessage        *string    `json:"error_message,omitempty" db:"error_message"`
+	IngestionStatus     string     `json:"ingestion_status" db:"ingestion_status"` // pending, in_progress, completed, failed
+	IngestionProgress   int        `json:"ingestion_progress" db:"ingestion_progress"` // 0-100 percentage
+	VectorCount         int        `json:"vector_count" db:"vector_count"` // Number of vectors ingested
+	IngestionStartedAt  *time.Time `json:"ingestion_started_at,omitempty" db:"ingestion_started_at"`
+	IngestionCompletedAt *time.Time `json:"ingestion_completed_at,omitempty" db:"ingestion_completed_at"`
+	Source              string     `json:"source" db:"source"` // local, google_drive
+	DriveFileID         *string    `json:"drive_file_id,omitempty" db:"drive_file_id"`
+	CreatedAt           time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt           time.Time  `json:"updated_at" db:"updated_at"`
+	ProcessedAt         *time.Time `json:"processed_at,omitempty" db:"processed_at"`
 }
 
 // FileSchema represents the schema of an uploaded file

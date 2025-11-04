@@ -267,11 +267,13 @@ func main() {
 	// Create planner service
 	plannerService := services.NewPlannerService(ollamaConn, connectorService, logger)
 
-	// Initialize file data ingestion service for vector embeddings
-	fileDataIngestionService := services.NewFileDataIngestionService(db, vectorStore, embeddingService, logger)
-
-	// Initialize file upload repository, processor and handler
+	// Initialize file upload repository first
 	fileUploadRepo := repository.NewUploadedFileRepository(db)
+
+	// Initialize file data ingestion service for vector embeddings (needs file repo for progress tracking)
+	fileDataIngestionService := services.NewFileDataIngestionService(db, vectorStore, embeddingService, fileUploadRepo, logger)
+
+	// Initialize file processor and handler
 	fileProcessor := services.NewFileProcessor(db, fileUploadRepo, connectorRepo, fileDataIngestionService)
 	fileUploadHandler := httpserver.NewFileUploadHandler(fileUploadRepo, fileProcessor, logger)
 

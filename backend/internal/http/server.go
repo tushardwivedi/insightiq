@@ -142,6 +142,17 @@ func (s *Server) routeFilesByID() http.HandlerFunc {
 			return
 		}
 
+		// Check if this is an ingestion-status sub-endpoint
+		// Pattern: /api/files/{id}/ingestion-status
+		if strings.Contains(path, "/ingestion-status") {
+			if r.Method == http.MethodGet {
+				s.fileUploadHandler.HandleGetIngestionStatus(w, r)
+			} else {
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+			return
+		}
+
 		switch r.Method {
 		case http.MethodGet:
 			s.fileUploadHandler.HandleGetByID(w, r)

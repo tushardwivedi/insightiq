@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { File, Trash2, Clock, Database, Copy, CheckCircle } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { File, Trash2, Clock, Database, Copy, CheckCircle, Loader2, Sparkles } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { UploadedFile } from '@/types'
 
@@ -14,10 +14,40 @@ export default function UploadedFilesList({ refreshTrigger, onCountChange }: Pro
   const [files, setFiles] = useState<UploadedFile[]>([])
   const [loading, setLoading] = useState(true)
   const [copiedTable, setCopiedTable] = useState<string | null>(null)
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     loadFiles()
+
+    // Start polling for ingestion status updates
+    startPolling()
+
+    return () => {
+      // Cleanup polling on unmount
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+      }
+    }
   }, [refreshTrigger])
+
+  const startPolling = () => {
+    // Clear any existing interval
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current)
+    }
+
+    // Poll every 3 seconds for files that are in progress
+    pollIntervalRef.current = setInterval(() => {
+      const inProgressFiles = files.filter(f =>
+        f.ingestion_status === 'in_progress' ||
+        (f.status === 'processing' && f.ingestion_status === 'pending')
+      )
+
+      if (inProgressFiles.length > 0) {
+        loadFiles() // Refresh files if any are in progress
+      }
+    }, 3000)
+  }
 
   const loadFiles = async () => {
     try {
@@ -73,6 +103,19 @@ export default function UploadedFilesList({ refreshTrigger, onCountChange }: Pro
     }
   }
 
+  const getIngestionStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed': return { bg: '#10b98120', color: '#10b981' }
+      case 'in_progress': return { bg: '#3b82f620', color: '#3b82f6' }
+      case 'failed': return { bg: '#ef444420', color: '#ef4444' }
+      default: return { bg: '#6b728020', color: '#6b7280' }
+    }
+  }
+
+  const isRAGReady = (file: UploadedFile) => {
+    return file.status === 'completed' && file.ingestion_status === 'completed'
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-12">
@@ -107,7 +150,9 @@ export default function UploadedFilesList({ refreshTrigger, onCountChange }: Pro
     <div className="space-y-3">
       {files.map(file => {
         const statusStyle = getStatusColor(file.status)
+        const ingestionStyle = getIngestionStatusColor(file.ingestion_status)
         const isCopied = copiedTable === file.table_name
+        const ragReady = isRAGReady(file)
 
         return (
           <div
@@ -125,9 +170,21 @@ export default function UploadedFilesList({ refreshTrigger, onCountChange }: Pro
                   <File className="w-6 h-6 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium truncate mb-1" style={{ color: 'var(--text-primary)' }}>
-                    {file.original_filename}
-                  </p>
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="font-medium truncate" style={{ color: 'var(--text-primary)' }}>
+                      {file.original_filename}
+                    </p>
+                    {ragReady && (
+                      <div
+                        className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+                        style={{ background: '#10b98120', color: '#10b981' }}
+                        title="RAG queries available"
+                      >
+                        <Sparkles className="w-3 h-3" />
+                        <span>RAG Ready</span>
+                      </div>
+                    )}
+                  </div>
                   <div className="flex items-center gap-3 text-xs flex-wrap" style={{ color: 'var(--text-secondary)' }}>
                     <span className="flex items-center gap-1">
                       <Database className="w-3 h-3" />
@@ -141,12 +198,43 @@ export default function UploadedFilesList({ refreshTrigger, onCountChange }: Pro
                         <span>{file.row_count.toLocaleString()} rows</span>
                       </>
                     )}
+                    {file.vector_count > 0 && (
+                      <>
+                        <span>•</span>
+                        <span className="flex items-center gap-1">
+                          <Sparkles className="w-3 h-3" />
+                          {file.vector_count} vectors
+                        </span>
+                      </>
+                    )}
                     <span>•</span>
                     <span className="flex items-center gap-1">
                       <Clock className="w-3 h-3" />
                       {new Date(file.created_at).toLocaleDateString()}
                     </span>
                   </div>
+
+                  {/* Ingestion Progress Bar */}
+                  {file.ingestion_status === 'in_progress' && (
+                    <div className="mt-3">
+                      <div className="flex items-center justify-between text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>
+                        <span className="flex items-center gap-1">
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          Ingesting vectors for RAG queries...
+                        </span>
+                        <span>{file.ingestion_progress}%</span>
+                      </div>
+                      <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: 'var(--hover-surface)' }}>
+                        <div
+                          className="h-full transition-all duration-300"
+                          style={{
+                            width: `${file.ingestion_progress}%`,
+                            background: 'linear-gradient(90deg, #3b82f6, #8b5cf6)'
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   {/* Table Name - For Query Use */}
                   <div className="mt-2">
@@ -198,12 +286,22 @@ export default function UploadedFilesList({ refreshTrigger, onCountChange }: Pro
 
               {/* Right: Status & Actions */}
               <div className="flex items-center gap-2 flex-shrink-0">
-                <span
-                  className="text-xs px-3 py-1 rounded-full font-medium"
-                  style={{ background: statusStyle.bg, color: statusStyle.color }}
-                >
-                  {file.status}
-                </span>
+                <div className="flex flex-col gap-1">
+                  <span
+                    className="text-xs px-3 py-1 rounded-full font-medium whitespace-nowrap"
+                    style={{ background: statusStyle.bg, color: statusStyle.color }}
+                  >
+                    {file.status}
+                  </span>
+                  {file.status === 'completed' && file.ingestion_status !== 'pending' && (
+                    <span
+                      className="text-xs px-3 py-1 rounded-full font-medium whitespace-nowrap"
+                      style={{ background: ingestionStyle.bg, color: ingestionStyle.color }}
+                    >
+                      {file.ingestion_status === 'in_progress' ? 'vectorizing' : file.ingestion_status}
+                    </span>
+                  )}
+                </div>
                 <button
                   onClick={() => handleDelete(file)}
                   className="p-2 rounded-lg transition-colors"

@@ -102,4 +102,10 @@ export interface UploadedFile {
   created_at: string;
   updated_at: string;
   processed_at?: string;
+  // Ingestion tracking fields
+  ingestion_status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  ingestion_progress: number;
+  vector_count: number;
+  ingestion_started_at?: string;
+  ingestion_completed_at?: string;
 }

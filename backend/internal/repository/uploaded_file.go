@@ -125,3 +125,59 @@ func (r *UploadedFileRepository) GetByTableName(ctx context.Context, tableName s
 	}
 	return &file, err
 }
+
+// UpdateIngestionStatus updates the ingestion status and related fields
+func (r *UploadedFileRepository) UpdateIngestionStatus(ctx context.Context, id uuid.UUID, status string, progress int, vectorCount int) error {
+	query := `
+		UPDATE uploaded_files
+		SET ingestion_status = $1,
+		    ingestion_progress = $2,
+		    vector_count = $3,
+		    updated_at = NOW()
+		WHERE id = $4
+	`
+	_, err := r.db.ExecContext(ctx, query, status, progress, vectorCount, id)
+	return err
+}
+
+// StartIngestion marks the start of ingestion process
+func (r *UploadedFileRepository) StartIngestion(ctx context.Context, id uuid.UUID) error {
+	query := `
+		UPDATE uploaded_files
+		SET ingestion_status = 'in_progress',
+		    ingestion_progress = 0,
+		    ingestion_started_at = NOW(),
+		    updated_at = NOW()
+		WHERE id = $1
+	`
+	_, err := r.db.ExecContext(ctx, query, id)
+	return err
+}
+
+// CompleteIngestion marks the completion of ingestion process
+func (r *UploadedFileRepository) CompleteIngestion(ctx context.Context, id uuid.UUID, vectorCount int) error {
+	query := `
+		UPDATE uploaded_files
+		SET ingestion_status = 'completed',
+		    ingestion_progress = 100,
+		    vector_count = $1,
+		    ingestion_completed_at = NOW(),
+		    updated_at = NOW()
+		WHERE id = $2
+	`
+	_, err := r.db.ExecContext(ctx, query, vectorCount, id)
+	return err
+}
+
+// FailIngestion marks the ingestion as failed with an error message
+func (r *UploadedFileRepository) FailIngestion(ctx context.Context, id uuid.UUID, errorMsg string) error {
+	query := `
+		UPDATE uploaded_files
+		SET ingestion_status = 'failed',
+		    error_message = $1,
+		    updated_at = NOW()
+		WHERE id = $2
+	`
+	_, err := r.db.ExecContext(ctx, query, errorMsg, id)
+	return err
+}

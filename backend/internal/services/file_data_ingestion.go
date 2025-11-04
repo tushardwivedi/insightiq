@@ -27,7 +27,16 @@ type FileDataIngestionService struct {
 	db               *sqlx.DB
 	vectorStore      vectorstore.VectorStore
 	embeddingService embedding.EmbeddingService
+	fileRepo         FileRepository
 	logger           *slog.Logger
+}
+
+// FileRepository defines the interface for file repository operations
+type FileRepository interface {
+	StartIngestion(ctx context.Context, id uuid.UUID) error
+	UpdateIngestionStatus(ctx context.Context, id uuid.UUID, status string, progress int, vectorCount int) error
+	CompleteIngestion(ctx context.Context, id uuid.UUID, vectorCount int) error
+	FailIngestion(ctx context.Context, id uuid.UUID, errorMsg string) error
 }
 
 // NewFileDataIngestionService creates a new file data ingestion service
@@ -35,12 +44,14 @@ func NewFileDataIngestionService(
 	db *sqlx.DB,
 	vectorStore vectorstore.VectorStore,
 	embeddingService embedding.EmbeddingService,
+	fileRepo FileRepository,
 	logger *slog.Logger,
 ) *FileDataIngestionService {
 	return &FileDataIngestionService{
 		db:               db,
 		vectorStore:      vectorStore,
 		embeddingService: embeddingService,
+		fileRepo:         fileRepo,
 		logger:           logger.With("service", "file_data_ingestion"),
 	}
 }
@@ -55,34 +66,70 @@ func (s *FileDataIngestionService) IngestFileData(ctx context.Context, file *mod
 
 	startTime := time.Now()
 
+	// Mark ingestion as started
+	if s.fileRepo != nil {
+		if err := s.fileRepo.StartIngestion(ctx, file.ID); err != nil {
+			s.logger.Warn("Failed to update ingestion start status", "error", err)
+		}
+	}
+
+	totalVectorCount := 0
+
 	// Ensure collection exists
 	dimension := s.embeddingService.GetDimension()
 	if err := s.vectorStore.CreateCollection(ctx, FileDataCollectionName, dimension); err != nil {
 		s.logger.Warn("Failed to create vector collection (may already exist)", "error", err)
 	}
 
-	// Step 1: Ingest schema metadata (for schema-aware queries)
+	// Step 1: Ingest schema metadata (for schema-aware queries) - 10% progress
 	if err := s.ingestSchemaMetadata(ctx, file); err != nil {
 		s.logger.Error("Failed to ingest schema metadata", "error", err)
+		if s.fileRepo != nil {
+			s.fileRepo.FailIngestion(ctx, file.ID, fmt.Sprintf("schema ingestion failed: %v", err))
+		}
 		return fmt.Errorf("schema ingestion failed: %w", err)
 	}
-
-	// Step 2: Ingest file summary (for high-level queries)
-	if err := s.ingestFileSummary(ctx, file); err != nil {
-		s.logger.Error("Failed to ingest file summary", "error", err)
-		return fmt.Errorf("file summary ingestion failed: %w", err)
+	totalVectorCount++ // 1 vector for schema
+	if s.fileRepo != nil {
+		s.fileRepo.UpdateIngestionStatus(ctx, file.ID, "in_progress", 10, totalVectorCount)
 	}
 
-	// Step 3: Ingest row-level data (for detailed queries)
-	if err := s.ingestRowData(ctx, file); err != nil {
+	// Step 2: Ingest file summary (for high-level queries) - 20% progress
+	if err := s.ingestFileSummary(ctx, file); err != nil {
+		s.logger.Error("Failed to ingest file summary", "error", err)
+		if s.fileRepo != nil {
+			s.fileRepo.FailIngestion(ctx, file.ID, fmt.Sprintf("file summary ingestion failed: %v", err))
+		}
+		return fmt.Errorf("file summary ingestion failed: %w", err)
+	}
+	totalVectorCount++ // 1 vector for summary
+	if s.fileRepo != nil {
+		s.fileRepo.UpdateIngestionStatus(ctx, file.ID, "in_progress", 20, totalVectorCount)
+	}
+
+	// Step 3: Ingest row-level data (for detailed queries) - 20-100% progress
+	rowVectorCount, err := s.ingestRowData(ctx, file)
+	if err != nil {
 		s.logger.Error("Failed to ingest row data", "error", err)
+		if s.fileRepo != nil {
+			s.fileRepo.FailIngestion(ctx, file.ID, fmt.Sprintf("row data ingestion failed: %v", err))
+		}
 		return fmt.Errorf("row data ingestion failed: %w", err)
+	}
+	totalVectorCount += rowVectorCount
+
+	// Mark ingestion as completed
+	if s.fileRepo != nil {
+		if err := s.fileRepo.CompleteIngestion(ctx, file.ID, totalVectorCount); err != nil {
+			s.logger.Warn("Failed to update ingestion completion status", "error", err)
+		}
 	}
 
 	duration := time.Since(startTime)
 	s.logger.Info("Vector ingestion completed successfully",
 		"file_id", file.ID,
 		"filename", file.OriginalFilename,
+		"total_vectors", totalVectorCount,
 		"duration", duration.String())
 
 	return nil
@@ -230,7 +277,7 @@ func (s *FileDataIngestionService) ingestFileSummary(ctx context.Context, file *
 }
 
 // ingestRowData creates embeddings for individual rows (chunked strategy)
-func (s *FileDataIngestionService) ingestRowData(ctx context.Context, file *models.UploadedFile) error {
+func (s *FileDataIngestionService) ingestRowData(ctx context.Context, file *models.UploadedFile) (int, error) {
 	s.logger.Info("Ingesting row-level data", "file_id", file.ID, "max_rows", MaxRowsToEmbed)
 
 	// Determine how many rows to embed (cap at MaxRowsToEmbed)
@@ -243,6 +290,7 @@ func (s *FileDataIngestionService) ingestRowData(ctx context.Context, file *mode
 	// Query data in batches
 	offset := 0
 	batchNum := 0
+	totalVectorsCreated := 0
 
 	for offset < rowsToEmbed {
 		limit := MaxRowsPerBatch
@@ -250,32 +298,42 @@ func (s *FileDataIngestionService) ingestRowData(ctx context.Context, file *mode
 			limit = rowsToEmbed - offset
 		}
 
-		if err := s.ingestRowBatch(ctx, file, offset, limit, batchNum); err != nil {
+		vectorsInBatch, err := s.ingestRowBatch(ctx, file, offset, limit, batchNum)
+		if err != nil {
 			s.logger.Error("Failed to ingest row batch", "offset", offset, "limit", limit, "error", err)
-			return fmt.Errorf("row batch ingestion failed at offset %d: %w", offset, err)
+			return totalVectorsCreated, fmt.Errorf("row batch ingestion failed at offset %d: %w", offset, err)
 		}
 
+		totalVectorsCreated += vectorsInBatch
 		offset += limit
 		batchNum++
+
+		// Update progress (20% base + 80% based on rows processed)
+		// Progress goes from 20% to 100% during row ingestion
+		progressPercent := 20 + int(float64(offset)/float64(rowsToEmbed)*80)
+		if s.fileRepo != nil {
+			s.fileRepo.UpdateIngestionStatus(ctx, file.ID, "in_progress", progressPercent, 2+totalVectorsCreated) // 2 = schema + summary
+		}
 	}
 
 	s.logger.Info("Row-level data ingestion completed",
 		"file_id", file.ID,
 		"rows_embedded", rowsToEmbed,
-		"batches", batchNum)
+		"batches", batchNum,
+		"vectors_created", totalVectorsCreated)
 
-	return nil
+	return totalVectorsCreated, nil
 }
 
 // ingestRowBatch ingests a batch of rows into vector store
-func (s *FileDataIngestionService) ingestRowBatch(ctx context.Context, file *models.UploadedFile, offset, limit, batchNum int) error {
+func (s *FileDataIngestionService) ingestRowBatch(ctx context.Context, file *models.UploadedFile, offset, limit, batchNum int) (int, error) {
 	s.logger.Info("Ingesting row batch", "batch", batchNum, "offset", offset, "limit", limit)
 
 	// Query batch of rows
 	query := fmt.Sprintf("SELECT * FROM %s OFFSET %d LIMIT %d", file.TableName, offset, limit)
 	rows, err := s.db.QueryxContext(ctx, query)
 	if err != nil {
-		return fmt.Errorf("failed to query row batch: %w", err)
+		return 0, fmt.Errorf("failed to query row batch: %w", err)
 	}
 	defer rows.Close()
 
@@ -326,19 +384,19 @@ func (s *FileDataIngestionService) ingestRowBatch(ctx context.Context, file *mod
 
 	if len(vectors) == 0 {
 		s.logger.Warn("No vectors generated for batch", "batch", batchNum)
-		return nil
+		return 0, nil
 	}
 
 	// Batch upsert to vector store
 	if err := s.vectorStore.UpsertVectors(ctx, FileDataCollectionName, vectors); err != nil {
-		return fmt.Errorf("failed to upsert row vectors: %w", err)
+		return 0, fmt.Errorf("failed to upsert row vectors: %w", err)
 	}
 
 	s.logger.Info("Row batch ingested successfully",
 		"batch", batchNum,
 		"vectors_created", len(vectors))
 
-	return nil
+	return len(vectors), nil
 }
 
 // createRowSearchText creates a searchable text representation of a row

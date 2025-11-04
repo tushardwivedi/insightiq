@@ -218,6 +218,64 @@ func (h *FileUploadHandler) HandleGetByID(w http.ResponseWriter, r *http.Request
 	respondJSON(w, http.StatusOK, file)
 }
 
+// HandleGetIngestionStatus retrieves the ingestion status of an uploaded file
+func (h *FileUploadHandler) HandleGetIngestionStatus(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Get file ID from URL path
+	path := r.URL.Path
+	parts := strings.Split(strings.TrimPrefix(path, "/api/files/"), "/")
+	if len(parts) < 2 || parts[0] == "" {
+		h.logger.Error("File ID not provided in URL")
+		respondJSON(w, http.StatusBadRequest, map[string]string{"error": "File ID required"})
+		return
+	}
+
+	fileIDStr := parts[0]
+	fileID, err := uuid.Parse(fileIDStr)
+	if err != nil {
+		h.logger.Error("Invalid file ID", "error", err)
+		respondJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid file ID"})
+		return
+	}
+
+	file, err := h.fileRepo.GetByID(ctx, fileID)
+	if err != nil {
+		h.logger.Error("Failed to get file", "error", err, "file_id", fileID)
+		respondJSON(w, http.StatusNotFound, map[string]string{"error": "File not found"})
+		return
+	}
+
+	// Get user ID from context and verify ownership
+	userID, ok := ctx.Value("user_id").(string)
+	if !ok {
+		h.logger.Error("User ID not found in context")
+		respondJSON(w, http.StatusUnauthorized, map[string]string{"error": "Unauthorized"})
+		return
+	}
+
+	if file.UserID.String() != userID {
+		h.logger.Warn("User attempting to access ingestion status for file they don't own", "user_id", userID, "file_id", fileID)
+		respondJSON(w, http.StatusForbidden, map[string]string{"error": "Access denied"})
+		return
+	}
+
+	// Return ingestion status information
+	statusResponse := map[string]interface{}{
+		"file_id":              file.ID,
+		"filename":             file.OriginalFilename,
+		"status":               file.Status,
+		"ingestion_status":     file.IngestionStatus,
+		"ingestion_progress":   file.IngestionProgress,
+		"vector_count":         file.VectorCount,
+		"ingestion_started_at": file.IngestionStartedAt,
+		"ingestion_completed_at": file.IngestionCompletedAt,
+		"row_count":            file.RowCount,
+	}
+
+	respondJSON(w, http.StatusOK, statusResponse)
+}
+
 // HandleDelete deletes an uploaded file
 func (h *FileUploadHandler) HandleDelete(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
