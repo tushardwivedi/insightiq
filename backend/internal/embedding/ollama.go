@@ -32,9 +32,19 @@ type ollamaEmbeddingResponse struct {
 
 // NewOllamaEmbeddingService creates a new Ollama embedding service
 func NewOllamaEmbeddingService(baseURL, model string, logger *slog.Logger) EmbeddingService {
-	// Default to a lightweight embedding model dimension
-	// In production, this should be determined by probing the model
-	dimension := 384 // Common dimension for all-MiniLM-L6-v2
+	// Set dimension based on model type
+	// nomic-embed-text uses 768 dimensions
+	// all-MiniLM-L6-v2 uses 384 dimensions
+	dimension := 768 // Default for nomic-embed-text
+
+	if model == "all-MiniLM-L6-v2" {
+		dimension = 384
+	}
+
+	logger.Info("Creating Ollama embedding service",
+		"model", model,
+		"dimension", dimension,
+		"baseURL", baseURL)
 
 	return &OllamaEmbeddingService{
 		baseURL:   baseURL,

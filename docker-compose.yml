@@ -120,6 +120,7 @@ services:
       - redis
       - supertokens
     environment:
+      - DEBUG=true
       - OLLAMA_URL=${OLLAMA_URL:-http://ollama:11434}
       - WHISPER_URL=${WHISPER_URL:-http://whisper:9000}
       - QDRANT_URL=${QDRANT_URL:-http://qdrant:6333}

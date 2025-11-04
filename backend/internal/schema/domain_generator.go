@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"insightiq/backend/internal/embedding"
 	"insightiq/backend/internal/vectorstore"
 )
@@ -124,8 +125,11 @@ func (d *DomainGeneratorService) ingestDomainContext(ctx context.Context, collec
 	metadata["pattern_descriptions"] = patternDescriptions
 
 	// Create vector with enhanced metadata
+	// Use UUID format for vector ID (Qdrant requires UUID or uint64)
+	vectorID := uuid.New().String()
+	metadata["semantic_id"] = fmt.Sprintf("dynamic_domain_%s_%s", connectorID, domainCtx.Domain)
 	vector := vectorstore.Vector{
-		ID:       fmt.Sprintf("dynamic_domain_%s_%s", connectorID, domainCtx.Domain),
+		ID:       vectorID,
 		Values:   embeddingResp.Embedding,
 		Metadata: metadata,
 	}
@@ -164,8 +168,11 @@ func (d *DomainGeneratorService) updateGlobalDomainContexts(ctx context.Context,
 		}
 
 		// Create vector for global collection
+		// Use UUID format for vector ID (Qdrant requires UUID or uint64)
+		globalVectorID := uuid.New().String()
+		globalMetadata["semantic_id"] = fmt.Sprintf("domain_%s_%s", domainCtx.Domain, connectorID)
 		globalVector := vectorstore.Vector{
-			ID:       fmt.Sprintf("domain_%s_%s", domainCtx.Domain, connectorID),
+			ID:       globalVectorID,
 			Values:   embeddingResp.Embedding,
 			Metadata: globalMetadata,
 		}

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"insightiq/backend/internal/embedding"
 	"insightiq/backend/internal/vectorstore"
 )
@@ -90,8 +91,10 @@ func (s *IngestionService) ingestDomainContext(ctx context.Context, domainCtx Do
 	}
 
 	// Create vector with metadata
+	// Use UUID format for vector ID (Qdrant requires UUID or uint64)
+	vectorID := uuid.New().String()
 	vector := vectorstore.Vector{
-		ID:     fmt.Sprintf("domain_%s", domainCtx.Domain),
+		ID:     vectorID,
 		Values: embeddingResp.Embedding,
 		Metadata: map[string]interface{}{
 			"type":        "domain_context",
@@ -101,6 +104,7 @@ func (s *IngestionService) ingestDomainContext(ctx context.Context, domainCtx Do
 			"metrics":     domainCtx.Metrics,
 			"dimensions":  domainCtx.Dimensions,
 			"table_count": len(domainCtx.Tables),
+			"semantic_id": fmt.Sprintf("domain_%s", domainCtx.Domain), // Store semantic ID in metadata
 			"updated_at":  domainCtx.LastUpdated.Format(time.RFC3339),
 		},
 	}

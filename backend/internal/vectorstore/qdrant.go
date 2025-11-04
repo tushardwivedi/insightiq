@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -218,6 +219,16 @@ func (q *QdrantClient) callQdrantUpsert(ctx context.Context, collectionName stri
 		return fmt.Errorf("failed to marshal upsert request: %w", err)
 	}
 
+	// DEBUG: Log sample of payload (first point only to avoid huge logs)
+	samplePayload := string(jsonData)
+	if len(samplePayload) > 500 {
+		samplePayload = samplePayload[:500] + "..."
+	}
+	q.logger.Debug("Qdrant upsert request",
+		"url", fmt.Sprintf("%s/collections/%s/points", q.baseURL, collectionName),
+		"vector_count", len(vectors),
+		"sample_payload", samplePayload)
+
 	url := fmt.Sprintf("%s/collections/%s/points", q.baseURL, collectionName)
 	req, err := http.NewRequestWithContext(ctx, "PUT", url, bytes.NewBuffer(jsonData))
 	if err != nil {
@@ -232,8 +243,14 @@ func (q *QdrantClient) callQdrantUpsert(ctx context.Context, collectionName stri
 	}
 	defer resp.Body.Close()
 
+	// DEBUG: Read and log response body on error
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("qdrant upsert failed with status %d", resp.StatusCode)
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		q.logger.Error("Qdrant upsert failed",
+			"status", resp.StatusCode,
+			"response_body", string(bodyBytes),
+			"collection", collectionName)
+		return fmt.Errorf("qdrant upsert failed with status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	return nil
@@ -295,12 +312,18 @@ func (q *QdrantClient) callQdrantSearch(ctx context.Context, collectionName stri
 func (q *QdrantClient) callQdrantCreateCollection(ctx context.Context, collectionName string, dimension int) error {
 	request := QdrantCreateCollectionRequest{}
 	request.Vectors.Size = dimension
-	request.Vectors.Distance = "cosine" // Use cosine similarity
+	request.Vectors.Distance = "Cosine" // Use cosine similarity (must be capitalized)
 
 	jsonData, err := json.Marshal(request)
 	if err != nil {
 		return fmt.Errorf("failed to marshal create collection request: %w", err)
 	}
+
+	// DEBUG: Log the exact payload being sent
+	q.logger.Debug("Qdrant create collection request",
+		"url", fmt.Sprintf("%s/collections/%s", q.baseURL, collectionName),
+		"payload", string(jsonData),
+		"dimension", dimension)
 
 	url := fmt.Sprintf("%s/collections/%s", q.baseURL, collectionName)
 	req, err := http.NewRequestWithContext(ctx, "PUT", url, bytes.NewBuffer(jsonData))
@@ -316,9 +339,13 @@ func (q *QdrantClient) callQdrantCreateCollection(ctx context.Context, collectio
 	}
 	defer resp.Body.Close()
 
-	// 200 = created, 409 = already exists (both are fine)
+	// DEBUG: Read and log response body on error
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusConflict {
-		return fmt.Errorf("qdrant create collection failed with status %d", resp.StatusCode)
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		q.logger.Error("Qdrant create collection failed",
+			"status", resp.StatusCode,
+			"response_body", string(bodyBytes))
+		return fmt.Errorf("qdrant create collection failed with status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	return nil
