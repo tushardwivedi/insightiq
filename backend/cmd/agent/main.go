@@ -283,10 +283,10 @@ func main() {
 	server := &http.Server{
 		Addr:              getEnvOrDefault("PORT", ":8080"),
 		Handler:           httpServer,
-		ReadTimeout:       30 * time.Second,
-		WriteTimeout:      30 * time.Second,
+		ReadTimeout:       120 * time.Second, // Increased for LLM processing
+		WriteTimeout:      120 * time.Second, // Increased for LLM insight generation
 		IdleTimeout:       120 * time.Second,
-		ReadHeaderTimeout: 5 * time.Second,
+		ReadHeaderTimeout: 10 * time.Second,
 		MaxHeaderBytes:    1 << 20, // 1 MB
 	}
 

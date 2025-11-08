@@ -165,7 +165,7 @@ func (as *AnalyticsService) ProcessQuery(ctx context.Context, query string) (*An
 	}
 
 	// Wait for result (in production, this would be async with callbacks)
-	result, err := as.waitForResult(ctx, taskID, 30*time.Second)
+	result, err := as.waitForResult(ctx, taskID, 150*time.Second) // Increased from 90s to 150s to accommodate longer LLM processing
 	if err != nil {
 		as.logger.Error("Failed to get task result", "task_id", taskID, "error", err)
 		return nil, fmt.Errorf("analytics agent failed: %w", err)
@@ -252,7 +252,7 @@ func (as *AnalyticsService) ExecuteCustomSQL(ctx context.Context, sql, question 
 	}
 
 	// Wait for result
-	result, err := as.waitForResult(ctx, taskID, 90*time.Second)
+	result, err := as.waitForResult(ctx, taskID, 150*time.Second) // Increased from 90s to 150s to accommodate longer LLM processing
 	if err != nil {
 		return nil, err
 	}

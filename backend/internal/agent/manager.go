@@ -67,7 +67,7 @@ func (m *Manager) Start(ctx context.Context) error {
 func (m *Manager) SubmitTask(task Task) error {
 	// Set default timeout if not specified
 	if task.Timeout == 0 {
-		task.Timeout = 30 * time.Second
+		task.Timeout = 120 * time.Second // Increased from 30s to 120s to accommodate LLM analysis time
 	}
 
 	// Set creation time

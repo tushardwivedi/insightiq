@@ -37,28 +37,43 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(url, {
-      headers,
-      credentials: 'same-origin',
-      ...options,
-    });
+    // Create AbortController for timeout - 3 minutes for LLM processing
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minutes
 
-    if (!response.ok) {
-      // Handle 401 Unauthorized
-      if (response.status === 401) {
-        // Clear token and redirect to login
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('auth_token');
-          window.location.href = '/login';
+    try {
+      const response = await fetch(url, {
+        headers,
+        credentials: 'same-origin',
+        signal: controller.signal,
+        ...options,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        // Handle 401 Unauthorized
+        if (response.status === 401) {
+          // Clear token and redirect to login
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('auth_token');
+            window.location.href = '/login';
+          }
         }
+
+        const error = await response.text();
+        const sanitizedError = error.replace(/<[^>]*>/g, '');
+        throw new Error(`API Error: ${response.status} - ${sanitizedError}`);
       }
 
-      const error = await response.text();
-      const sanitizedError = error.replace(/<[^>]*>/g, '');
-      throw new Error(`API Error: ${response.status} - ${sanitizedError}`);
+      return response.json();
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('Request timeout - the operation took too long. Please try again.');
+      }
+      throw error;
     }
-
-    return response.json();
   }
 
   async healthCheck(): Promise<HealthCheck> {

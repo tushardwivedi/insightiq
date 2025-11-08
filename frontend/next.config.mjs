@@ -1,5 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Increase timeout for LLM processing (default is 30s)
+  experimental: {
+    proxyTimeout: 120000, // 120 seconds in milliseconds
+  },
   async rewrites() {
     return [
       {

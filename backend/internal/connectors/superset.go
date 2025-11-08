@@ -311,10 +311,17 @@ func (sc *SuperSetConnector) FindRelevantDataset(ctx context.Context, query stri
 		return nil, fmt.Errorf("no meaningful keywords found in query")
 	}
 
-	// Get all available dashboards
+	// WORKAROUND: Try GetDashboards, but if it fails with 422, fall back to Charts API
 	dashboards, err := sc.GetDashboards(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get dashboards: %w", err)
+		sc.logger.Warn("GetDashboards failed, trying alternative discovery via Charts API", "error", err)
+
+		// Alternative: Get all charts and infer dashboards from them
+		dashboards, err = sc.getDashboardsViaCharts(ctx)
+		if err != nil {
+			sc.logger.Error("Both Dashboard and Chart APIs failed", "error", err)
+			return nil, fmt.Errorf("failed to discover dashboards: %w", err)
+		}
 	}
 
 	sc.logger.Info("Retrieved dashboards", "count", len(dashboards))
@@ -550,8 +557,10 @@ func (sc *SuperSetConnector) GetDashboards(ctx context.Context) ([]map[string]in
 		}
 	}
 
-	// Add pagination parameters to avoid 422 errors
-	url := fmt.Sprintf("%s/api/v1/dashboard/?q=(page:0,page_size:100)", sc.baseURL)
+	// WORKAROUND: Don't use ?q= pagination parameter to avoid 422 "Subject must be a string" error
+	// This is a known Superset issue where JWT sub claim as integer causes validation failure
+	// Using simple endpoint without query parameters works around the issue
+	url := fmt.Sprintf("%s/api/v1/dashboard/", sc.baseURL)
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create dashboard request: %w", err)
@@ -598,6 +607,46 @@ func (sc *SuperSetConnector) GetDashboards(ctx context.Context) ([]map[string]in
 	}
 
 	return result.Result, nil
+}
+
+// getDashboardsViaCharts is a workaround to get dashboards by parsing charts API
+// This bypasses the 422 "Subject must be a string" error on dashboard API
+func (sc *SuperSetConnector) getDashboardsViaCharts(ctx context.Context) ([]map[string]interface{}, error) {
+	sc.logger.Info("🔄 Using Charts API workaround to discover dashboards")
+
+	charts, err := sc.GetCharts(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("charts API also failed: %w", err)
+	}
+
+	// Extract unique dashboards from charts
+	dashboardMap := make(map[float64]map[string]interface{})
+
+	for _, chart := range charts {
+		// Charts have dashboard information in their metadata
+		if dashboards, ok := chart["dashboards"].([]interface{}); ok {
+			for _, dash := range dashboards {
+				if dashMap, ok := dash.(map[string]interface{}); ok {
+					if id, ok := dashMap["id"].(float64); ok {
+						dashboardMap[id] = map[string]interface{}{
+							"id":              id,
+							"dashboard_title": dashMap["dashboard_title"],
+							"url":             dashMap["url"],
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Convert map to slice
+	var dashboards []map[string]interface{}
+	for _, dashboard := range dashboardMap {
+		dashboards = append(dashboards, dashboard)
+	}
+
+	sc.logger.Info("✅ Discovered dashboards via Charts API", "count", len(dashboards))
+	return dashboards, nil
 }
 
 // GetCharts retrieves all charts from Superset
