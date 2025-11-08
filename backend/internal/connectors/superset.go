@@ -550,7 +550,9 @@ func (sc *SuperSetConnector) GetDashboards(ctx context.Context) ([]map[string]in
 		}
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "GET", sc.baseURL+"/api/v1/dashboard/", nil)
+	// Add pagination parameters to avoid 422 errors
+	url := fmt.Sprintf("%s/api/v1/dashboard/?q=(page:0,page_size:100)", sc.baseURL)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create dashboard request: %w", err)
 	}
@@ -565,6 +567,15 @@ func (sc *SuperSetConnector) GetDashboards(ctx context.Context) ([]map[string]in
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		// Read response body for better error diagnostics
+		bodyBytes := make([]byte, 500) // Read first 500 bytes for error diagnostics
+		n, _ := resp.Body.Read(bodyBytes)
+		errorPreview := string(bodyBytes[:n])
+
+		sc.logger.Error("Dashboard API returned non-OK status",
+			"status", resp.StatusCode,
+			"url", url,
+			"response_preview", errorPreview)
 		return nil, fmt.Errorf("dashboards API returned status %d", resp.StatusCode)
 	}
 
@@ -1014,68 +1025,10 @@ func (sc *SuperSetConnector) QueryDataset(ctx context.Context, userQuery string)
 
 // getRelevantData tries multiple approaches to get relevant data based on user query
 func (sc *SuperSetConnector) getRelevantData(ctx context.Context, userQuery string) ([]map[string]interface{}, error) {
-	queryLower := strings.ToLower(userQuery)
 	sc.logger.Info("Starting comprehensive data retrieval", "query", userQuery)
 
-	// Strategy 1: Try to get data using direct SQL queries based on known dataset structure
-	if strings.Contains(queryLower, "sales") || strings.Contains(queryLower, "dashboard") ||
-	   strings.Contains(queryLower, "revenue") || strings.Contains(queryLower, "insights") {
-
-		sc.logger.Info("Attempting to query vehicle sales data based on dashboard structure")
-
-		// Try different table names that might exist in the vehicle sales dataset
-		// Based on the vehicle seller dashboard, try specific vehicle sales queries
-		tableQueries := []string{
-			// Vehicle sales specific queries with aggregation for better visualization
-			`SELECT
-				productLine as category,
-				COUNT(*) as orders,
-				SUM(quantityOrdered * priceEach) as revenue,
-				AVG(quantityOrdered * priceEach) as avg_order_value
-			FROM orderdetails od
-			JOIN products p ON od.productCode = p.productCode
-			GROUP BY productLine
-			ORDER BY revenue DESC
-			LIMIT 20`,
-
-			`SELECT
-				EXTRACT(YEAR FROM orderDate) as year,
-				EXTRACT(MONTH FROM orderDate) as month,
-				COUNT(*) as orders,
-				SUM(od.quantityOrdered * od.priceEach) as revenue
-			FROM orders o
-			JOIN orderdetails od ON o.orderNumber = od.orderNumber
-			GROUP BY year, month
-			ORDER BY year, month
-			LIMIT 24`,
-
-			// Simple table queries
-			"SELECT * FROM orderdetails LIMIT 20",
-			"SELECT * FROM orders LIMIT 20",
-			"SELECT * FROM products LIMIT 20",
-			"SELECT * FROM customers LIMIT 20",
-			"SELECT * FROM payments LIMIT 20",
-
-			// With public schema
-			"SELECT * FROM public.orderdetails LIMIT 20",
-			"SELECT * FROM public.orders LIMIT 20",
-			"SELECT * FROM public.products LIMIT 20",
-			"SELECT * FROM public.customers LIMIT 20",
-			"SELECT * FROM public.payments LIMIT 20",
-		}
-
-		for _, sql := range tableQueries {
-			sc.logger.Info("Trying SQL query", "sql", sql)
-			sqlResult, err := sc.ExecuteSQL(ctx, sql)
-			if err == nil && sqlResult != nil && len(sqlResult.Data) > 0 {
-				sc.logger.Info("Successfully retrieved vehicle sales data", "rows", len(sqlResult.Data), "sql", sql)
-				return sqlResult.Data, nil
-			}
-			sc.logger.Debug("SQL query failed", "sql", sql, "error", err)
-		}
-	}
-
-	// Strategy 2: Try to get metadata about available tables
+	// Strategy 1: Try to discover available tables dynamically first (most reliable)
+	// This was previously Strategy 2, but we prioritize it now
 	sc.logger.Info("Attempting to discover available tables")
 	metadataSQL := `
 		SELECT table_name, column_name, data_type
@@ -1117,93 +1070,13 @@ func (sc *SuperSetConnector) getRelevantData(ctx context.Context, userQuery stri
 		return sqlResult.Data, nil
 	}
 
-	// Strategy 3: Return appropriate sample data based on query content
-	sc.logger.Info("Determining appropriate sample data based on query", "query", userQuery)
+	// Strategy 2 (fallback): Return error instead of fake sample data
+	// This ensures users know when real data isn't available rather than seeing misleading sample data
+	sc.logger.Error("❌ Unable to retrieve data from Superset",
+		"query", userQuery,
+		"reason", "No accessible tables found and table discovery failed")
 
-	// Generate context-appropriate sample data
-	var sampleData []map[string]interface{}
-
-	if strings.Contains(queryLower, "birth") || strings.Contains(queryLower, "name") ||
-	   strings.Contains(queryLower, "usa") {
-		// USA Births Names data
-		sc.logger.Info("Using sample USA births names data")
-		sampleData = []map[string]interface{}{
-			{"name": "Emma", "births": 20799, "year": 2020, "gender": "Female", "rank": 1},
-			{"name": "Olivia", "births": 17535, "year": 2020, "gender": "Female", "rank": 2},
-			{"name": "Ava", "births": 15438, "year": 2020, "gender": "Female", "rank": 3},
-			{"name": "Charlotte", "births": 13003, "year": 2020, "gender": "Female", "rank": 4},
-			{"name": "Sophia", "births": 12496, "year": 2020, "gender": "Female", "rank": 5},
-			{"name": "Liam", "births": 19659, "year": 2020, "gender": "Male", "rank": 1},
-			{"name": "Noah", "births": 18252, "year": 2020, "gender": "Male", "rank": 2},
-			{"name": "William", "births": 14425, "year": 2020, "gender": "Male", "rank": 3},
-			{"name": "James", "births": 13525, "year": 2020, "gender": "Male", "rank": 4},
-			{"name": "Oliver", "births": 14147, "year": 2020, "gender": "Male", "rank": 5},
-		}
-	} else if strings.Contains(queryLower, "game") || strings.Contains(queryLower, "gaming") ||
-	          strings.Contains(queryLower, "video") {
-		// Video Game Sales data
-		sc.logger.Info("Using sample video game sales data")
-		sampleData = []map[string]interface{}{
-			{"game": "Wii Sports", "platform": "Wii", "sales": 82.74, "year": 2006, "genre": "Sports"},
-			{"game": "Super Mario Bros.", "platform": "NES", "sales": 40.24, "year": 1985, "genre": "Platform"},
-			{"game": "Mario Kart Wii", "platform": "Wii", "sales": 37.38, "year": 2008, "genre": "Racing"},
-			{"game": "Wii Sports Resort", "platform": "Wii", "sales": 33.00, "year": 2009, "genre": "Sports"},
-			{"game": "Pokemon Red/Blue", "platform": "GB", "sales": 31.37, "year": 1996, "genre": "Role-Playing"},
-			{"game": "Tetris", "platform": "GB", "sales": 30.26, "year": 1989, "genre": "Puzzle"},
-			{"game": "New Super Mario Bros.", "platform": "DS", "sales": 30.01, "year": 2006, "genre": "Platform"},
-			{"game": "Wii Play", "platform": "Wii", "sales": 29.02, "year": 2006, "genre": "Misc"},
-			{"game": "New Super Mario Bros. Wii", "platform": "Wii", "sales": 28.62, "year": 2009, "genre": "Platform"},
-			{"game": "Duck Hunt", "platform": "NES", "sales": 28.31, "year": 1984, "genre": "Shooter"},
-		}
-	} else if strings.Contains(queryLower, "slack") {
-		// Slack Dashboard data
-		sc.logger.Info("Using sample Slack dashboard data")
-		sampleData = []map[string]interface{}{
-			{"channel": "#general", "messages": 2847, "users": 156, "date": "2024-01"},
-			{"channel": "#development", "messages": 1923, "users": 45, "date": "2024-01"},
-			{"channel": "#marketing", "messages": 1456, "users": 28, "date": "2024-01"},
-			{"channel": "#support", "messages": 987, "users": 23, "date": "2024-01"},
-			{"channel": "#random", "messages": 756, "users": 89, "date": "2024-01"},
-			{"channel": "#general", "messages": 3156, "users": 162, "date": "2024-02"},
-			{"channel": "#development", "messages": 2145, "users": 48, "date": "2024-02"},
-			{"channel": "#marketing", "messages": 1634, "users": 31, "date": "2024-02"},
-			{"channel": "#support", "messages": 1123, "users": 26, "date": "2024-02"},
-			{"channel": "#random", "messages": 834, "users": 94, "date": "2024-02"},
-		}
-	} else if strings.Contains(queryLower, "covid") || strings.Contains(queryLower, "vaccine") {
-		// COVID Vaccine Dashboard data
-		sc.logger.Info("Using sample COVID vaccine dashboard data")
-		sampleData = []map[string]interface{}{
-			{"state": "California", "vaccinated": 25467890, "population": 39512223, "percentage": 64.4, "date": "2021-12"},
-			{"state": "Texas", "vaccinated": 18234567, "population": 28995881, "percentage": 62.9, "date": "2021-12"},
-			{"state": "Florida", "vaccinated": 13567234, "population": 21477737, "percentage": 63.2, "date": "2021-12"},
-			{"state": "New York", "vaccinated": 12345678, "population": 19453561, "percentage": 63.5, "date": "2021-12"},
-			{"state": "Pennsylvania", "vaccinated": 8123456, "population": 12801989, "percentage": 63.4, "date": "2021-12"},
-			{"state": "Illinois", "vaccinated": 7987654, "population": 12671821, "percentage": 63.0, "date": "2021-12"},
-			{"state": "Ohio", "vaccinated": 7234567, "population": 11689100, "percentage": 61.9, "date": "2021-12"},
-			{"state": "Georgia", "vaccinated": 6567890, "population": 10617423, "percentage": 61.9, "date": "2021-12"},
-			{"state": "North Carolina", "vaccinated": 6456789, "population": 10488084, "percentage": 61.6, "date": "2021-12"},
-			{"state": "Michigan", "vaccinated": 6123456, "population": 9986857, "percentage": 61.3, "date": "2021-12"},
-		}
-	} else {
-		// Default: Vehicle Sales data for sales/dashboard/revenue queries
-		sc.logger.Info("Using sample vehicle sales data")
-		sampleData = []map[string]interface{}{
-			{"category": "Classic Cars", "revenue": 3853922.49, "orders": 967, "quarter": "2003-Q4"},
-			{"category": "Vintage Cars", "revenue": 1797559.63, "orders": 431, "quarter": "2003-Q4"},
-			{"category": "Motorcycles", "revenue": 1121426.30, "orders": 331, "quarter": "2003-Q4"},
-			{"category": "Trucks and Buses", "revenue": 1024113.57, "orders": 239, "quarter": "2003-Q4"},
-			{"category": "Planes", "revenue": 954637.54, "orders": 306, "quarter": "2003-Q4"},
-			{"category": "Ships", "revenue": 663998.34, "orders": 132, "quarter": "2003-Q4"},
-			{"category": "Classic Cars", "revenue": 4080645.23, "orders": 1025, "quarter": "2004-Q1"},
-			{"category": "Vintage Cars", "revenue": 1903123.45, "orders": 456, "quarter": "2004-Q1"},
-			{"category": "Motorcycles", "revenue": 1256789.12, "orders": 367, "quarter": "2004-Q1"},
-			{"category": "Trucks and Buses", "revenue": 1134567.89, "orders": 289, "quarter": "2004-Q1"},
-		}
-	}
-
-	sc.logger.Info("Returning context-appropriate sample data", "rows", len(sampleData), "type", "context-based")
-	return sampleData, nil
+	return nil, fmt.Errorf("unable to retrieve data from Superset for query '%s'. Please verify: (1) Dashboard exists in Superset, (2) Database connection is configured, (3) User has necessary permissions", userQuery)
 }
 
 // generateSQLFromQuery creates SQL queries based on user intent
