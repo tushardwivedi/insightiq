@@ -996,16 +996,33 @@ func (sc *SuperSetConnector) GetDashboardData(ctx context.Context, dashboardID i
 
 	sc.logger.Info("Extracted chart IDs from dashboard", "dashboard_id", dashboardID, "chart_count", len(chartIDs), "chart_ids", chartIDs)
 
-	// Fetch data from all charts
+	// Fetch data from all charts IN PARALLEL for better performance
+	type chartResult struct {
+		chartID int
+		data    []map[string]interface{}
+		err     error
+	}
+
+	resultChan := make(chan chartResult, len(chartIDs))
+
+	// Launch goroutines to fetch charts in parallel
 	for _, chartID := range chartIDs {
-		chartData, err := sc.GetChartData(ctx, chartID)
-		if err != nil {
-			sc.logger.Warn("Failed to get chart data", "chart_id", chartID, "error", err)
+		go func(id int) {
+			chartData, err := sc.GetChartData(ctx, id)
+			resultChan <- chartResult{chartID: id, data: chartData, err: err}
+		}(chartID)
+	}
+
+	// Collect results from all goroutines
+	for i := 0; i < len(chartIDs); i++ {
+		result := <-resultChan
+		if result.err != nil {
+			sc.logger.Warn("Failed to get chart data", "chart_id", result.chartID, "error", result.err)
 			continue
 		}
-		if len(chartData) > 0 {
-			sc.logger.Debug("Retrieved data from chart", "chart_id", chartID, "rows", len(chartData))
-			allData = append(allData, chartData...)
+		if len(result.data) > 0 {
+			sc.logger.Debug("Retrieved data from chart", "chart_id", result.chartID, "rows", len(result.data))
+			allData = append(allData, result.data...)
 		}
 	}
 
