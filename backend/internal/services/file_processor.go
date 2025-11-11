@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,9 +20,11 @@ import (
 )
 
 const (
-	BatchSize        = 1000
-	MaxRowsToSample  = 100
-	MaxColumnNameLen = 63 // PostgreSQL identifier length limit
+	BatchSize         = 1000
+	MaxRowsToSample   = 100
+	MaxColumnNameLen  = 63    // PostgreSQL identifier length limit
+	MaxPostgresParams = 32000 // Conservative PostgreSQL parameter limit with large buffer
+	MinBatchSize      = 1     // Minimum batch size for very wide tables
 )
 
 type FileProcessor struct {
@@ -269,6 +273,7 @@ func (fp *FileProcessor) detectSchema(headers []string, sampleData [][]string) [
 		// Analyze column values
 		hasNonEmpty := false
 		allIntegers := true
+		allBigInts := true
 		allFloats := true
 		allBooleans := true
 		allDates := true
@@ -285,9 +290,38 @@ func (fp *FileProcessor) detectSchema(headers []string, sampleData [][]string) [
 
 			hasNonEmpty = true
 
-			// Check if integer
-			if allIntegers && !regexp.MustCompile(`^-?\d+$`).MatchString(value) {
-				allIntegers = false
+			// Check if integer (with range validation)
+			if allIntegers {
+				if regexp.MustCompile(`^-?\d+$`).MatchString(value) {
+					// Additional check: exclude very long numeric strings that are likely IDs
+					// Ultra-strict validation: reject anything longer than 8 digits for safety
+					if len(value) > 8 {
+						allIntegers = false
+						slog.Debug("Rejecting as integer due to length", "value", value, "length", len(value))
+					} else if intVal, err := strconv.ParseInt(value, 10, 32); err != nil || intVal > 99999999 || intVal < -99999999 {
+						allIntegers = false
+						slog.Debug("Rejecting as integer due to range", "value", value)
+					}
+				} else {
+					allIntegers = false
+				}
+			}
+
+			// Check if big integer
+			if allBigInts {
+				if regexp.MustCompile(`^-?\d+$`).MatchString(value) {
+					// Additional check: exclude very long numeric strings that are likely IDs
+					// Ultra-strict validation: reject anything longer than 10 digits for safety
+					if len(value) > 10 {
+						allBigInts = false
+						slog.Debug("Rejecting as bigint due to length", "value", value, "length", len(value))
+					} else if bigIntVal, err := strconv.ParseInt(value, 10, 64); err != nil || bigIntVal > 9999999999 || bigIntVal < -9999999999 {
+						allBigInts = false
+						slog.Debug("Rejecting as bigint due to range", "value", value)
+					}
+				} else {
+					allBigInts = false
+				}
 			}
 
 			// Check if float
@@ -315,6 +349,8 @@ func (fp *FileProcessor) detectSchema(headers []string, sampleData [][]string) [
 		if hasNonEmpty {
 			if allIntegers {
 				columnType = "INTEGER"
+			} else if allBigInts {
+				columnType = "BIGINT"
 			} else if allFloats {
 				columnType = "NUMERIC"
 			} else if allBooleans {
@@ -329,6 +365,9 @@ func (fp *FileProcessor) detectSchema(headers []string, sampleData [][]string) [
 			Type:     columnType,
 			Nullable: nullable,
 		}
+
+		// Log column type detection for debugging
+		slog.Debug("Detected column type", "column", header, "type", columnType, "samples", len(sampleData))
 	}
 
 	return schema
@@ -378,10 +417,11 @@ func (fp *FileProcessor) createTable(ctx context.Context, tableName string, sche
 	return nil
 }
 
-// insertCSVData inserts CSV data in batches
+// insertCSVData inserts CSV data in batches with dynamic batch sizing
 func (fp *FileProcessor) insertCSVData(ctx context.Context, tableName string, headers []string, reader *csv.Reader) (int, error) {
 	totalRows := 0
-	batch := make([][]string, 0, BatchSize)
+	safeBatchSize := fp.calculateSafeBatchSize(len(headers))
+	batch := make([][]string, 0, safeBatchSize)
 
 	for {
 		row, err := reader.Read()
@@ -394,7 +434,7 @@ func (fp *FileProcessor) insertCSVData(ctx context.Context, tableName string, he
 
 		batch = append(batch, row)
 
-		if len(batch) >= BatchSize {
+		if len(batch) >= safeBatchSize {
 			if err := fp.insertBatch(ctx, tableName, headers, batch); err != nil {
 				return totalRows, err
 			}
@@ -414,12 +454,13 @@ func (fp *FileProcessor) insertCSVData(ctx context.Context, tableName string, he
 	return totalRows, nil
 }
 
-// insertExcelData inserts Excel data in batches
+// insertExcelData inserts Excel data in batches with dynamic batch sizing
 func (fp *FileProcessor) insertExcelData(ctx context.Context, tableName string, headers []string, rows [][]string) (int, error) {
 	totalRows := 0
+	safeBatchSize := fp.calculateSafeBatchSize(len(headers))
 
-	for i := 0; i < len(rows); i += BatchSize {
-		end := i + BatchSize
+	for i := 0; i < len(rows); i += safeBatchSize {
+		end := i + safeBatchSize
 		if end > len(rows) {
 			end = len(rows)
 		}
@@ -434,10 +475,45 @@ func (fp *FileProcessor) insertExcelData(ctx context.Context, tableName string, 
 	return totalRows, nil
 }
 
+// calculateSafeBatchSize calculates batch size to stay under PostgreSQL parameter limit
+func (fp *FileProcessor) calculateSafeBatchSize(columnCount int) int {
+	// Calculate safe batch size based on column count
+	safeBatchSize := MaxPostgresParams / columnCount
+
+	// Ensure minimum batch size
+	if safeBatchSize < MinBatchSize {
+		safeBatchSize = MinBatchSize
+	}
+
+	// Cap at default batch size for normal tables
+	if safeBatchSize > BatchSize {
+		safeBatchSize = BatchSize
+	}
+
+	// Log when using reduced batch size
+	if safeBatchSize < BatchSize {
+		slog.Warn("Using reduced batch size due to large column count",
+			"columns", columnCount,
+			"safe_batch_size", safeBatchSize,
+			"default_batch_size", BatchSize,
+			"max_params_per_batch", safeBatchSize*columnCount,
+			"postgres_limit", MaxPostgresParams)
+	}
+
+	return safeBatchSize
+}
+
 // insertBatch inserts a batch of rows into the table
 func (fp *FileProcessor) insertBatch(ctx context.Context, tableName string, headers []string, batch [][]string) error {
 	if len(batch) == 0 {
 		return nil
+	}
+
+	// Validate parameter count before building query
+	paramCount := len(batch) * len(headers)
+	if paramCount > MaxPostgresParams {
+		return fmt.Errorf("batch too large: %d parameters exceeds PostgreSQL limit of %d (batch: %d rows, columns: %d)",
+			paramCount, MaxPostgresParams, len(batch), len(headers))
 	}
 
 	// Build INSERT statement with placeholders
