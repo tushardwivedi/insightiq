@@ -160,28 +160,28 @@ export default function UploadedFilesList({ refreshTrigger, onCountChange }: Pro
             className="p-4 rounded-lg border transition-all hover:shadow-md"
             style={{ background: 'var(--surface-color)', borderColor: 'var(--border-color)' }}
           >
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start justify-between gap-2 min-w-0">
               {/* Left: File Info */}
-              <div className="flex items-start gap-3 flex-1">
+              <div className="flex items-start gap-2 flex-1 min-w-0 overflow-hidden">
                 <div
-                  className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 mt-1"
+                  className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 mt-1"
                   style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
                 >
-                  <File className="w-6 h-6 text-white" />
+                  <File className="w-5 h-5 text-white" />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1 overflow-hidden">
-                    <p className="font-medium truncate flex-shrink min-w-0" style={{ color: 'var(--text-primary)' }} title={file.original_filename}>
+                <div className="flex-1 min-w-0 overflow-hidden">
+                  <div className="flex items-center gap-1.5 mb-1 min-w-0">
+                    <p className="font-medium truncate text-sm flex-1 min-w-0" style={{ color: 'var(--text-primary)' }} title={file.original_filename}>
                       {file.original_filename}
                     </p>
                     {ragReady && (
                       <div
-                        className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0"
+                        className="flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-medium flex-shrink-0 whitespace-nowrap"
                         style={{ background: '#10b98120', color: '#10b981' }}
                         title="RAG queries available"
                       >
                         <Sparkles className="w-3 h-3" />
-                        <span>RAG Ready</span>
+                        <span className="hidden sm:inline">RAG</span>
                       </div>
                     )}
                   </div>
@@ -217,12 +217,12 @@ export default function UploadedFilesList({ refreshTrigger, onCountChange }: Pro
                   {/* Ingestion Progress Bar */}
                   {file.ingestion_status === 'in_progress' && (
                     <div className="mt-3">
-                      <div className="flex items-center justify-between text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>
-                        <span className="flex items-center gap-1">
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                          Ingesting vectors for RAG queries...
+                      <div className="flex items-center justify-between text-xs mb-1 gap-2 min-w-0" style={{ color: 'var(--text-secondary)' }}>
+                        <span className="flex items-center gap-1 truncate flex-1 min-w-0">
+                          <Loader2 className="w-3 h-3 animate-spin flex-shrink-0" />
+                          <span className="truncate">Vectorizing...</span>
                         </span>
-                        <span>{file.ingestion_progress}%</span>
+                        <span className="flex-shrink-0 font-medium">{file.ingestion_progress}%</span>
                       </div>
                       <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: 'var(--hover-surface)' }}>
                         <div
@@ -238,12 +238,12 @@ export default function UploadedFilesList({ refreshTrigger, onCountChange }: Pro
 
                   {/* Table Name - For Query Use */}
                   <div className="mt-2">
-                    <p className="text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>
-                      Table name (click to copy):
+                    <p className="text-xs mb-1 truncate" style={{ color: 'var(--text-secondary)' }}>
+                      Table name:
                     </p>
                     <button
                       onClick={() => handleCopyTable(file.table_name)}
-                      className="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-mono transition-all w-full"
+                      className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-mono transition-all w-full min-w-0"
                       style={{
                         background: 'var(--primary-background)',
                         color: 'var(--text-primary)',
@@ -258,17 +258,17 @@ export default function UploadedFilesList({ refreshTrigger, onCountChange }: Pro
                         e.currentTarget.style.borderColor = 'var(--border-color)'
                         e.currentTarget.style.background = 'var(--primary-background)'
                       }}
-                      title="Click to copy table name for queries"
+                      title={`Click to copy: ${file.table_name}`}
                     >
                       {isCopied ? (
                         <>
-                          <CheckCircle className="w-3 h-3" style={{ color: '#10b981' }} />
-                          <span style={{ color: '#10b981' }}>Copied to clipboard!</span>
+                          <CheckCircle className="w-3 h-3 flex-shrink-0" style={{ color: '#10b981' }} />
+                          <span className="truncate flex-1 text-left text-xs" style={{ color: '#10b981' }}>Copied!</span>
                         </>
                       ) : (
                         <>
-                          <Database className="w-3 h-3" />
-                          <span className="truncate flex-1 text-left">{file.table_name}</span>
+                          <Database className="w-3 h-3 flex-shrink-0" />
+                          <span className="truncate flex-1 text-left min-w-0">{file.table_name}</span>
                           <Copy className="w-3 h-3 flex-shrink-0" />
                         </>
                       )}
@@ -285,26 +285,26 @@ export default function UploadedFilesList({ refreshTrigger, onCountChange }: Pro
               </div>
 
               {/* Right: Status & Actions */}
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <div className="flex flex-col gap-1">
+              <div className="flex items-start gap-1.5 flex-shrink-0">
+                <div className="flex flex-col gap-1 items-end">
                   <span
-                    className="text-xs px-3 py-1 rounded-full font-medium whitespace-nowrap"
+                    className="text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap"
                     style={{ background: statusStyle.bg, color: statusStyle.color }}
                   >
                     {file.status}
                   </span>
                   {file.status === 'completed' && file.ingestion_status !== 'pending' && (
                     <span
-                      className="text-xs px-3 py-1 rounded-full font-medium whitespace-nowrap"
+                      className="text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap"
                       style={{ background: ingestionStyle.bg, color: ingestionStyle.color }}
                     >
-                      {file.ingestion_status === 'in_progress' ? 'vectorizing' : file.ingestion_status}
+                      {file.ingestion_status === 'in_progress' ? 'vector' : file.ingestion_status}
                     </span>
                   )}
                 </div>
                 <button
                   onClick={() => handleDelete(file.id, file.original_filename, file.table_name)}
-                  className="p-2 rounded-lg transition-colors"
+                  className="p-1.5 rounded-lg transition-colors"
                   style={{ color: '#ef4444' }}
                   onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
                   onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
