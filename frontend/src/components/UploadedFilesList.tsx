@@ -64,14 +64,14 @@ export default function UploadedFilesList({ refreshTrigger, onCountChange }: Pro
     }
   }
 
-  const handleDelete = async (file: UploadedFile) => {
-    if (!confirm(`Are you sure you want to delete "${file.original_filename}"?\n\nThis will also delete the table "${file.table_name}" and all its data.`)) {
+  const handleDelete = async (fileId: string, fileName: string, tableName: string) => {
+    if (!confirm(`Are you sure you want to delete "${fileName}"?\n\nThis will also delete the table "${tableName}" and all its data.`)) {
       return
     }
 
     try {
-      await apiClient.deleteUploadedFile(file.id)
-      const updatedFiles = files.filter(f => f.id !== file.id)
+      await apiClient.deleteUploadedFile(fileId)
+      const updatedFiles = files.filter(f => f.id !== fileId)
       setFiles(updatedFiles)
       if (onCountChange) {
         onCountChange(updatedFiles.length)
@@ -170,13 +170,13 @@ export default function UploadedFilesList({ refreshTrigger, onCountChange }: Pro
                   <File className="w-6 h-6 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <p className="font-medium truncate" style={{ color: 'var(--text-primary)' }}>
+                  <div className="flex items-center gap-2 mb-1 overflow-hidden">
+                    <p className="font-medium truncate flex-shrink min-w-0" style={{ color: 'var(--text-primary)' }} title={file.original_filename}>
                       {file.original_filename}
                     </p>
                     {ragReady && (
                       <div
-                        className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+                        className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0"
                         style={{ background: '#10b98120', color: '#10b981' }}
                         title="RAG queries available"
                       >
@@ -303,7 +303,7 @@ export default function UploadedFilesList({ refreshTrigger, onCountChange }: Pro
                   )}
                 </div>
                 <button
-                  onClick={() => handleDelete(file)}
+                  onClick={() => handleDelete(file.id, file.original_filename, file.table_name)}
                   className="p-2 rounded-lg transition-colors"
                   style={{ color: '#ef4444' }}
                   onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
