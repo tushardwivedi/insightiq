@@ -55,7 +55,7 @@ export default function InteractiveCharts({ data, insights }: Props) {
             size: 12,
             family: 'system-ui, sans-serif',
           },
-          color: '#374151',
+          color: getComputedStyle(document.documentElement).getPropertyValue('--text-primary') || '#374151',
         },
       },
       title: {
@@ -71,10 +71,10 @@ export default function InteractiveCharts({ data, insights }: Props) {
     scales: {
       x: {
         grid: {
-          color: 'rgba(0, 0, 0, 0.05)',
+          color: getComputedStyle(document.documentElement).getPropertyValue('--border-color') || 'rgba(0, 0, 0, 0.05)',
         },
         ticks: {
-          color: '#6B7280',
+          color: getComputedStyle(document.documentElement).getPropertyValue('--text-secondary') || '#6B7280',
           font: {
             size: 11,
           },
@@ -82,10 +82,10 @@ export default function InteractiveCharts({ data, insights }: Props) {
       },
       y: {
         grid: {
-          color: 'rgba(0, 0, 0, 0.05)',
+          color: getComputedStyle(document.documentElement).getPropertyValue('--border-color') || 'rgba(0, 0, 0, 0.05)',
         },
         ticks: {
-          color: '#6B7280',
+          color: getComputedStyle(document.documentElement).getPropertyValue('--text-secondary') || '#6B7280',
           font: {
             size: 11,
           },
@@ -660,7 +660,7 @@ export default function InteractiveCharts({ data, insights }: Props) {
               AI Insights & Visualizations
             </h3>
           </div>
-          <div className="leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+          <div className="leading-relaxed text-base" style={{ color: 'var(--text-primary)' }}>
             {insights || 'AI analysis of your data reveals interesting patterns and trends.'}
           </div>
         </div>
@@ -1015,8 +1015,8 @@ export default function InteractiveCharts({ data, insights }: Props) {
                     <span className="text-2xl">{metric.icon}</span>
                     <div className={`w-2 h-2 bg-gradient-to-r ${metric.color} rounded-full`}></div>
                   </div>
-                  <h5 className="text-sm font-medium style={{ color: 'var(--text-secondary)' }} mb-1">{metric.title}</h5>
-                  <p className="text-2xl font-bold style={{ color: 'var(--text-primary)' }}">{metric.value}</p>
+                  <h5 className="text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>{metric.title}</h5>
+                  <p className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>{metric.value}</p>
                 </div>
               </div>
             ))
