@@ -108,4 +108,9 @@ export interface UploadedFile {
   vector_count: number;
   ingestion_started_at?: string;
   ingestion_completed_at?: string;
+  // Data quality metrics
+  data_quality_score?: number;
+  missing_data_percent?: number;
+  duplicate_rows?: number;
+  rows_with_missing?: number;
 }

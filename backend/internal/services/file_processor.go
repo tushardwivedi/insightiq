@@ -177,6 +177,12 @@ func (fp *FileProcessor) processCSV(ctx context.Context, file *models.UploadedFi
 		slog.Warn("Data quality analysis failed", "error", err)
 		// Don't fail the entire processing - continue without quality metrics
 	} else {
+		// Store quality metrics in file model
+		file.DataQualityScore = &qualityReport.QualityScore
+		file.MissingDataPercent = &qualityReport.MissingDataPercent
+		file.DuplicateRows = &qualityReport.DuplicateRows
+		file.RowsWithMissing = &qualityReport.RowsWithMissing
+
 		// Log the quality metrics
 		slog.Info("Data quality analysis completed",
 			"quality_score", qualityReport.QualityScore,
@@ -184,7 +190,6 @@ func (fp *FileProcessor) processCSV(ctx context.Context, file *models.UploadedFi
 			"duplicates", qualityReport.DuplicateRows,
 			"complete_rows", qualityReport.CompleteRows,
 		)
-		// TODO: Store quality metrics in database (will be done in migration step)
 	}
 
 	return nil
@@ -252,6 +257,12 @@ func (fp *FileProcessor) processExcel(ctx context.Context, file *models.Uploaded
 		slog.Warn("Data quality analysis failed", "error", err)
 		// Don't fail the entire processing - continue without quality metrics
 	} else {
+		// Store quality metrics in file model
+		file.DataQualityScore = &qualityReport.QualityScore
+		file.MissingDataPercent = &qualityReport.MissingDataPercent
+		file.DuplicateRows = &qualityReport.DuplicateRows
+		file.RowsWithMissing = &qualityReport.RowsWithMissing
+
 		// Log the quality metrics
 		slog.Info("Data quality analysis completed",
 			"quality_score", qualityReport.QualityScore,
@@ -259,7 +270,6 @@ func (fp *FileProcessor) processExcel(ctx context.Context, file *models.Uploaded
 			"duplicates", qualityReport.DuplicateRows,
 			"complete_rows", qualityReport.CompleteRows,
 		)
-		// TODO: Store quality metrics in database (will be done in migration step)
 	}
 
 	return nil

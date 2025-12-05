@@ -158,24 +158,67 @@ func (s *FileDataIngestionService) ingestSchemaMetadata(ctx context.Context, fil
 		return fmt.Errorf("failed to generate schema embedding: %w", err)
 	}
 
-	// Create vector with rich metadata
+	// Create vector with rich metadata including data quality metrics
 	// Use UUID format for vector ID (Qdrant requires UUID or uint64)
 	vectorID := uuid.New().String()
+
+	// Build metadata with quality metrics
+	metadata := map[string]interface{}{
+		"type":              "schema",
+		"file_id":           file.ID.String(),
+		"filename":          file.OriginalFilename,
+		"table_name":        file.TableName,
+		"row_count":         file.RowCount,
+		"column_count":      len(file.SchemaJSON.Columns),
+		"file_type":         file.FileType,
+		"created_at":        file.CreatedAt.Unix(),
+		"searchable_text":   schemaText,
+		"semantic_id":       fmt.Sprintf("schema_%s", file.ID), // Store semantic ID in metadata
+	}
+
+	// Add data quality metrics if available
+	if file.DataQualityScore != nil {
+		metadata["data_quality_score"] = *file.DataQualityScore
+	}
+	if file.MissingDataPercent != nil {
+		metadata["missing_data_percent"] = *file.MissingDataPercent
+	}
+	if file.DuplicateRows != nil {
+		metadata["duplicate_rows"] = *file.DuplicateRows
+	}
+	if file.RowsWithMissing != nil {
+		metadata["rows_with_missing"] = *file.RowsWithMissing
+		metadata["complete_rows"] = file.RowCount - *file.RowsWithMissing
+	}
+
+	// Add column type categorization for better search
+	numericColumns := []string{}
+	categoricalColumns := []string{}
+	dateColumns := []string{}
+	for _, col := range file.SchemaJSON.Columns {
+		switch col.Type {
+		case "INTEGER", "BIGINT", "NUMERIC":
+			numericColumns = append(numericColumns, col.Name)
+		case "TIMESTAMP":
+			dateColumns = append(dateColumns, col.Name)
+		default:
+			categoricalColumns = append(categoricalColumns, col.Name)
+		}
+	}
+	if len(numericColumns) > 0 {
+		metadata["numeric_columns"] = numericColumns
+	}
+	if len(categoricalColumns) > 0 {
+		metadata["categorical_columns"] = categoricalColumns
+	}
+	if len(dateColumns) > 0 {
+		metadata["date_columns"] = dateColumns
+	}
+
 	vector := vectorstore.Vector{
-		ID:     vectorID,
-		Values: embeddingResp.Embedding,
-		Metadata: map[string]interface{}{
-			"type":              "schema",
-			"file_id":           file.ID.String(),
-			"filename":          file.OriginalFilename,
-			"table_name":        file.TableName,
-			"row_count":         file.RowCount,
-			"column_count":      len(file.SchemaJSON.Columns),
-			"file_type":         file.FileType,
-			"created_at":        file.CreatedAt.Unix(),
-			"searchable_text":   schemaText,
-			"semantic_id":       fmt.Sprintf("schema_%s", file.ID), // Store semantic ID in metadata
-		},
+		ID:       vectorID,
+		Values:   embeddingResp.Embedding,
+		Metadata: metadata,
 	}
 
 	// Upsert to vector store
@@ -248,23 +291,38 @@ func (s *FileDataIngestionService) ingestFileSummary(ctx context.Context, file *
 		return fmt.Errorf("failed to generate summary embedding: %w", err)
 	}
 
-	// Create vector
+	// Create vector with quality metrics
 	// Use UUID format for vector ID (Qdrant requires UUID or uint64)
 	vectorID := uuid.New().String()
+
+	// Build metadata with quality metrics
+	summaryMetadata := map[string]interface{}{
+		"type":              "summary",
+		"file_id":           file.ID.String(),
+		"filename":          file.OriginalFilename,
+		"table_name":        file.TableName,
+		"row_count":         file.RowCount,
+		"column_count":      len(file.SchemaJSON.Columns),
+		"sample_row_count":  len(sampleRows),
+		"searchable_text":   summaryText,
+		"semantic_id":       fmt.Sprintf("summary_%s", file.ID), // Store semantic ID in metadata
+	}
+
+	// Add data quality metrics if available
+	if file.DataQualityScore != nil {
+		summaryMetadata["data_quality_score"] = *file.DataQualityScore
+	}
+	if file.MissingDataPercent != nil {
+		summaryMetadata["missing_data_percent"] = *file.MissingDataPercent
+	}
+	if file.DuplicateRows != nil {
+		summaryMetadata["duplicate_rows"] = *file.DuplicateRows
+	}
+
 	vector := vectorstore.Vector{
-		ID:     vectorID,
-		Values: embeddingResp.Embedding,
-		Metadata: map[string]interface{}{
-			"type":              "summary",
-			"file_id":           file.ID.String(),
-			"filename":          file.OriginalFilename,
-			"table_name":        file.TableName,
-			"row_count":         file.RowCount,
-			"column_count":      len(file.SchemaJSON.Columns),
-			"sample_row_count":  len(sampleRows),
-			"searchable_text":   summaryText,
-			"semantic_id":       fmt.Sprintf("summary_%s", file.ID), // Store semantic ID in metadata
-		},
+		ID:       vectorID,
+		Values:   embeddingResp.Embedding,
+		Metadata: summaryMetadata,
 	}
 
 	// Upsert to vector store

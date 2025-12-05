@@ -28,6 +28,12 @@ type UploadedFile struct {
 	VectorCount         int        `json:"vector_count" db:"vector_count"` // Number of vectors ingested
 	IngestionStartedAt  *time.Time `json:"ingestion_started_at,omitempty" db:"ingestion_started_at"`
 	IngestionCompletedAt *time.Time `json:"ingestion_completed_at,omitempty" db:"ingestion_completed_at"`
+	// Data Quality Metrics
+	DataQualityScore    *float64   `json:"data_quality_score,omitempty" db:"data_quality_score"` // 0-1 overall quality score
+	MissingDataPercent  *float64   `json:"missing_data_percent,omitempty" db:"missing_data_percent"` // 0-100 percentage
+	DuplicateRows       *int       `json:"duplicate_rows,omitempty" db:"duplicate_rows"` // Count of duplicate rows
+	RowsWithMissing     *int       `json:"rows_with_missing,omitempty" db:"rows_with_missing"` // Rows with at least one null
+	QualityReport       *json.RawMessage `json:"quality_report,omitempty" db:"quality_report"` // Detailed quality report JSON
 	Source              string     `json:"source" db:"source"` // local, google_drive
 	DriveFileID         *string    `json:"drive_file_id,omitempty" db:"drive_file_id"`
 	CreatedAt           time.Time  `json:"created_at" db:"created_at"`

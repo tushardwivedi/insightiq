@@ -238,7 +238,7 @@ export default function FileUploadModal({ isOpen, onClose, onUploadComplete }: P
                 >
                   <CheckCircle className="w-12 h-12" style={{ color: '#10b981' }} />
                 </div>
-                <div>
+                <div className="w-full">
                   <p className="text-xl font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
                     Upload Complete!
                   </p>
@@ -246,11 +246,60 @@ export default function FileUploadModal({ isOpen, onClose, onUploadComplete }: P
                     {uploadedFile.original_filename} uploaded successfully
                   </p>
                   <div
-                    className="inline-block px-4 py-2 rounded-lg text-sm font-mono"
+                    className="inline-block px-4 py-2 rounded-lg text-sm font-mono mb-4"
                     style={{ background: 'var(--primary-background)', color: 'var(--text-primary)' }}
                   >
                     Table: <span style={{ color: 'var(--accent-color)' }}>{uploadedFile.table_name}</span>
                   </div>
+
+                  {/* Data Quality Metrics */}
+                  {uploadedFile.data_quality_score !== undefined && (
+                    <div
+                      className="mt-4 p-4 rounded-lg border w-full max-w-md mx-auto"
+                      style={{ background: 'var(--surface-color)', borderColor: 'var(--border-color)' }}
+                    >
+                      <h4 className="font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>
+                        Data Quality Analysis
+                      </h4>
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div className="text-left">
+                          <span style={{ color: 'var(--text-secondary)' }}>Quality Score:</span>
+                          <span
+                            className="ml-2 font-bold"
+                            style={{
+                              color: uploadedFile.data_quality_score >= 0.8 ? '#10b981' : uploadedFile.data_quality_score >= 0.6 ? '#f59e0b' : '#ef4444'
+                            }}
+                          >
+                            {(uploadedFile.data_quality_score * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                        {uploadedFile.missing_data_percent !== undefined && (
+                          <div className="text-left">
+                            <span style={{ color: 'var(--text-secondary)' }}>Missing Data:</span>
+                            <span className="ml-2 font-semibold" style={{ color: 'var(--text-primary)' }}>
+                              {uploadedFile.missing_data_percent.toFixed(1)}%
+                            </span>
+                          </div>
+                        )}
+                        {uploadedFile.duplicate_rows !== undefined && (
+                          <div className="text-left">
+                            <span style={{ color: 'var(--text-secondary)' }}>Duplicates:</span>
+                            <span className="ml-2 font-semibold" style={{ color: 'var(--text-primary)' }}>
+                              {uploadedFile.duplicate_rows}
+                            </span>
+                          </div>
+                        )}
+                        {uploadedFile.rows_with_missing !== undefined && (
+                          <div className="text-left">
+                            <span style={{ color: 'var(--text-secondary)' }}>Complete Rows:</span>
+                            <span className="ml-2 font-semibold" style={{ color: 'var(--text-primary)' }}>
+                              {uploadedFile.row_count - uploadedFile.rows_with_missing} / {uploadedFile.row_count}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
