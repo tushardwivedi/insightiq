@@ -16,6 +16,8 @@ import (
 type EnhancedAnalyticsService struct {
 	connectorService *ConnectorService
 	plannerService   *PlannerService
+	ragService       *RAGQueryService
+	orchestrator     *DataSourceOrchestrator
 	llmConn          *connectors.OllamaConnector
 	fallbackPostgres *connectors.PostgresConnector
 	fallbackSuperset *connectors.SuperSetConnector
@@ -52,6 +54,7 @@ func NewEnhancedAnalyticsService(
 	llm *connectors.OllamaConnector,
 	fallbackPostgres *connectors.PostgresConnector,
 	fallbackSuperset *connectors.SuperSetConnector,
+	ragService *RAGQueryService,
 	logger *slog.Logger,
 ) *EnhancedAnalyticsService {
 	eas := &EnhancedAnalyticsService{
@@ -59,12 +62,16 @@ func NewEnhancedAnalyticsService(
 		llmConn:          llm,
 		fallbackPostgres: fallbackPostgres,
 		fallbackSuperset: fallbackSuperset,
+		ragService:       ragService,
 		db:               nil, // Will be set if needed for file upload queries
 		logger:           logger.With("service", "enhanced_analytics"),
 	}
 
 	// Initialize planner service
 	eas.plannerService = NewPlannerService(llm, connectorService, logger)
+
+	// Initialize data source orchestrator
+	eas.orchestrator = NewDataSourceOrchestrator(connectorService, ragService, logger)
 
 	return eas
 }
@@ -131,6 +138,34 @@ func (eas *EnhancedAnalyticsService) ProcessQuery(ctx context.Context, req *Enha
 		} else {
 			eas.logger.Warn("No data returned from source", "source", source.Name, "type", source.Type)
 		}
+	}
+
+	// 2.5. Perform RAG vector search for relevant file context
+	if eas.ragService != nil {
+		eas.logger.Info("Performing RAG vector search", "query", req.Query)
+		ragStart := time.Now()
+		ragResults, err := eas.ragService.GetRelevantContext(ctx, req.Query, 10)
+		ragDuration := time.Since(ragStart)
+
+		if err != nil {
+			eas.logger.Warn("RAG search failed", "error", err, "duration", ragDuration)
+		} else if len(ragResults) > 0 {
+			eas.logger.Info("RAG search completed successfully",
+				"results_count", len(ragResults),
+				"duration", ragDuration)
+
+			// Convert RAG results to data format and merge
+			ragData := eas.convertRAGResultsToData(ragResults)
+			allData["rag_vector_search"] = ragData
+			combinedData = append(combinedData, ragData...)
+			eas.logger.Info("RAG results merged into combined data",
+				"rag_rows", len(ragData),
+				"total_rows", len(combinedData))
+		} else {
+			eas.logger.Info("RAG search returned no results", "duration", ragDuration)
+		}
+	} else {
+		eas.logger.Debug("RAG service not initialized, skipping vector search")
 	}
 
 	// 3. Check if any data was retrieved from connectors
@@ -623,12 +658,30 @@ func (eas *EnhancedAnalyticsService) generateAnalysisWithIntentRAG(
 		contextBuilder.WriteString(fmt.Sprintf("Time Range: %s\n", intent.ParsedQuery.TimeRange.Period))
 	}
 
-	// Add source information
+	// Add source information with RAG context awareness
 	contextBuilder.WriteString("Data Sources:\n")
+	var hasRAGResults bool
+	var ragResultCount int
+
 	for sourceName, data := range sourceData {
 		if dataSlice, ok := data.([]map[string]interface{}); ok {
 			contextBuilder.WriteString(fmt.Sprintf("- %s: %d records\n", sourceName, len(dataSlice)))
+
+			// Track RAG results separately
+			if sourceName == "rag_vector_search" {
+				hasRAGResults = true
+				ragResultCount = len(dataSlice)
+			}
 		}
+	}
+
+	// Add RAG-specific context if present
+	if hasRAGResults {
+		contextBuilder.WriteString(fmt.Sprintf("\nVector Search Context:\n"))
+		contextBuilder.WriteString(fmt.Sprintf("- Found %d relevant documents from uploaded files\n", ragResultCount))
+		contextBuilder.WriteString("- RAG results include file schemas, summaries, and specific data rows\n")
+		contextBuilder.WriteString("- Each result has a similarity score indicating relevance to the query\n")
+		contextBuilder.WriteString("- Consider using these vectorized contexts to enrich your analysis\n")
 	}
 
 	// Add sample data for context
@@ -692,4 +745,49 @@ func (eas *EnhancedAnalyticsService) generateAnalysisWithIntentRAG(
 Original Query: %s`, contextBuilder.String(), analysisPrompt, query)
 
 	return eas.llmConn.AnalyzeData(ctx, combinedData, enhancedQuery)
+}
+
+// convertRAGResultsToData converts RAG search results to standard data format
+func (eas *EnhancedAnalyticsService) convertRAGResultsToData(ragResults []RAGResult) []map[string]interface{} {
+	data := make([]map[string]interface{}, 0, len(ragResults))
+
+	for _, result := range ragResults {
+		row := map[string]interface{}{
+			"source":        "rag_vector_search",
+			"file_id":       result.FileID,
+			"file_name":     result.FileName,
+			"table_name":    result.TableName,
+			"content_type":  result.Type,
+			"content":       result.Content,
+			"score":         result.Score,
+			"vector_id":     result.VectorID,
+		}
+
+		// Add data quality metrics if available
+		if result.QualityScore != nil {
+			row["data_quality_score"] = *result.QualityScore
+		}
+		if result.MissingPercent != nil {
+			row["missing_data_percent"] = *result.MissingPercent
+		}
+		if result.DuplicateRows != nil {
+			row["duplicate_rows"] = *result.DuplicateRows
+		}
+
+		// Add column categorization if available
+		if len(result.NumericColumns) > 0 {
+			row["numeric_columns"] = strings.Join(result.NumericColumns, ", ")
+		}
+		if len(result.CategoricalColumns) > 0 {
+			row["categorical_columns"] = strings.Join(result.CategoricalColumns, ", ")
+		}
+		if len(result.DateColumns) > 0 {
+			row["date_columns"] = strings.Join(result.DateColumns, ", ")
+		}
+
+		data = append(data, row)
+	}
+
+	eas.logger.Debug("Converted RAG results to data format", "count", len(data))
+	return data
 }

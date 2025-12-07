@@ -228,8 +228,12 @@ func main() {
 	// Initialize agent manager
 	agentManager := agent.NewManager(logger)
 
+	// Initialize RAG query service for vector search
+	ragQueryService := services.NewRAGQueryService(vectorStore, embeddingService, logger)
+	logger.Info("RAG query service initialized successfully")
+
 	// Create enhanced analytics service (connector-only architecture)
-	enhancedAnalyticsService := services.NewEnhancedAnalyticsService(connectorService, ollamaConn, nil, nil, logger)
+	enhancedAnalyticsService := services.NewEnhancedAnalyticsService(connectorService, ollamaConn, nil, nil, ragQueryService, logger)
 	enhancedAnalyticsService.SetDatabase(db) // Set database for file upload queries
 
 	// Create and register agents (PostgreSQL connections disabled - using connector-only architecture)
