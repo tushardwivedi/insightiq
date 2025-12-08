@@ -14,15 +14,16 @@ import (
 
 // EnhancedAnalyticsService provides intelligent data source routing and RAG capabilities
 type EnhancedAnalyticsService struct {
-	connectorService *ConnectorService
-	plannerService   *PlannerService
-	ragService       *RAGQueryService
-	orchestrator     *DataSourceOrchestrator
-	llmConn          *connectors.OllamaConnector
-	fallbackPostgres *connectors.PostgresConnector
-	fallbackSuperset *connectors.SuperSetConnector
-	db               *sqlx.DB
-	logger           *slog.Logger
+	connectorService   *ConnectorService
+	plannerService     *PlannerService
+	ragService         *RAGQueryService
+	orchestrator       *DataSourceOrchestrator
+	validationService  *DataValidationService
+	llmConn            *connectors.OllamaConnector
+	fallbackPostgres   *connectors.PostgresConnector
+	fallbackSuperset   *connectors.SuperSetConnector
+	db                 *sqlx.DB
+	logger             *slog.Logger
 }
 
 // EnhancedAnalyticsRequest represents a request for analytics data
@@ -35,18 +36,19 @@ type EnhancedAnalyticsRequest struct {
 
 // EnhancedAnalyticsResponse represents the response with data and insights
 type EnhancedAnalyticsResponse struct {
-	Query        string                   `json:"query"`
-	Data         []map[string]interface{} `json:"data"`
-	Sources      map[string]interface{}   `json:"sources"`
-	Analysis     string                   `json:"analysis"`
-	DataSources  []string                 `json:"data_sources"`
-	Timestamp    time.Time                `json:"timestamp"`
-	ProcessTime  string                   `json:"process_time"`
-	TaskID       string                   `json:"task_id"`
-	Status       string                   `json:"status"`
-	Intent       *models.Intent           `json:"intent,omitempty"`
-	TaskGraph    *models.TaskGraph        `json:"task_graph,omitempty"`
-	PlanningTime string                   `json:"planning_time,omitempty"`
+	Query           string                   `json:"query"`
+	Data            []map[string]interface{} `json:"data"`
+	Sources         map[string]interface{}   `json:"sources"`
+	Analysis        string                   `json:"analysis"`
+	DataSources     []string                 `json:"data_sources"`
+	Timestamp       time.Time                `json:"timestamp"`
+	ProcessTime     string                   `json:"process_time"`
+	TaskID          string                   `json:"task_id"`
+	Status          string                   `json:"status"`
+	Intent          *models.Intent           `json:"intent,omitempty"`
+	TaskGraph       *models.TaskGraph        `json:"task_graph,omitempty"`
+	PlanningTime    string                   `json:"planning_time,omitempty"`
+	DataValidation  *ValidationResult        `json:"data_validation,omitempty"`
 }
 
 func NewEnhancedAnalyticsService(
@@ -72,6 +74,9 @@ func NewEnhancedAnalyticsService(
 
 	// Initialize data source orchestrator
 	eas.orchestrator = NewDataSourceOrchestrator(connectorService, ragService, logger)
+
+	// Initialize data validation service
+	eas.validationService = NewDataValidationService(logger)
 
 	return eas
 }
@@ -173,6 +178,28 @@ func (eas *EnhancedAnalyticsService) ProcessQuery(ctx context.Context, req *Enha
 		return nil, fmt.Errorf("no data available from configured connectors. Please check your connector configuration and ensure they contain the requested data")
 	}
 
+	// 3.5. Validate data quality and accuracy
+	var validationResult *ValidationResult
+	if eas.validationService != nil {
+		eas.logger.Info("Performing data validation", "record_count", len(combinedData))
+		validationResult, err = eas.validationService.ValidateData(ctx, combinedData)
+		if err != nil {
+			eas.logger.Warn("Data validation failed", "error", err)
+		} else {
+			eas.logger.Info("Data validation completed",
+				"quality_score", validationResult.QualityScore,
+				"warnings", len(validationResult.Warnings),
+				"errors", len(validationResult.Errors))
+
+			// Log quality warnings
+			if validationResult.QualityScore < 70 {
+				eas.logger.Warn("Data quality score below threshold",
+					"score", validationResult.QualityScore,
+					"recommendations", validationResult.Recommendations)
+			}
+		}
+	}
+
 	// 4. Generate comprehensive analysis with enhanced RAG context using intent
 	analysis, err := eas.generateAnalysisWithIntentRAG(ctx, combinedData, allData, req.Query, plannerResponse.Intent)
 	if err != nil {
@@ -180,18 +207,19 @@ func (eas *EnhancedAnalyticsService) ProcessQuery(ctx context.Context, req *Enha
 	}
 
 	return &EnhancedAnalyticsResponse{
-		Query:        req.Query,
-		Data:         combinedData,
-		Sources:      allData,
-		Analysis:     analysis,
-		DataSources:  eas.getSourceNames(dataSources),
-		Timestamp:    time.Now(),
-		ProcessTime:  time.Since(start).String(),
-		TaskID:       fmt.Sprintf("task_%d", start.Unix()),
-		Status:       "completed",
-		Intent:       &plannerResponse.Intent,
-		TaskGraph:    &plannerResponse.TaskGraph,
-		PlanningTime: planningTime.String(),
+		Query:          req.Query,
+		Data:           combinedData,
+		Sources:        allData,
+		Analysis:       analysis,
+		DataSources:    eas.getSourceNames(dataSources),
+		Timestamp:      time.Now(),
+		ProcessTime:    time.Since(start).String(),
+		TaskID:         fmt.Sprintf("task_%d", start.Unix()),
+		Status:         "completed",
+		Intent:         &plannerResponse.Intent,
+		TaskGraph:      &plannerResponse.TaskGraph,
+		PlanningTime:   planningTime.String(),
+		DataValidation: validationResult,
 	}, nil
 }
 
