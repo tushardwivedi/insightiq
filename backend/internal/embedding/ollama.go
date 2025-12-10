@@ -27,7 +27,8 @@ type ollamaEmbeddingRequest struct {
 
 // ollamaEmbeddingResponse represents the response from Ollama embedding API
 type ollamaEmbeddingResponse struct {
-	Embedding []float64 `json:"embedding"`
+	Embedding  []float64   `json:"embedding,omitempty"`  // For older API versions
+	Embeddings [][]float64 `json:"embeddings,omitempty"` // For newer API versions
 }
 
 // NewOllamaEmbeddingService creates a new Ollama embedding service
@@ -190,7 +191,7 @@ func (o *OllamaEmbeddingService) callOllamaEmbedding(ctx context.Context, text s
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", o.baseURL+"/api/embed", bytes.NewBuffer(jsonData))
+	req, err := http.NewRequestWithContext(ctx, "POST", o.baseURL+"/api/embeddings", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -212,5 +213,14 @@ func (o *OllamaEmbeddingService) callOllamaEmbedding(ctx context.Context, text s
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	return response.Embedding, nil
+	// Handle both API formats
+	if len(response.Embedding) > 0 {
+		// Older API format: single "embedding" field
+		return response.Embedding, nil
+	} else if len(response.Embeddings) > 0 && len(response.Embeddings[0]) > 0 {
+		// Newer API format: "embeddings" array, take first element
+		return response.Embeddings[0], nil
+	}
+
+	return nil, fmt.Errorf("ollama returned empty embeddings")
 }
