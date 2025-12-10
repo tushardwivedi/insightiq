@@ -27,6 +27,14 @@ type OllamaResponse struct {
 	Done     bool   `json:"done"`
 }
 
+type OllamaModel struct {
+	Name string `json:"name"`
+}
+
+type OllamaModelsResponse struct {
+	Models []OllamaModel `json:"models"`
+}
+
 func NewOllamaConnector(baseURL string, logger *slog.Logger) *OllamaConnector {
 	return &OllamaConnector{
 		baseURL: baseURL,
@@ -44,32 +52,54 @@ func (oc *OllamaConnector) GenerateResponse(ctx context.Context, prompt string) 
 		Stream: false,
 	}
 
-	jsonData, _ := json.Marshal(request)
+	jsonData, err := json.Marshal(request)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal request: %w", err)
+	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST",
 		oc.baseURL+"/api/generate",
 		bytes.NewBuffer(jsonData))
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to create request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := oc.client.Do(req)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to call Ollama API: %w", err)
 	}
 	defer resp.Body.Close()
 
+	// CRITICAL: Check HTTP status code
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes := make([]byte, 512)
+		n, _ := resp.Body.Read(bodyBytes)
+		bodySnippet := string(bodyBytes[:n])
+
+		if resp.StatusCode == http.StatusNotFound {
+			return "", fmt.Errorf("Ollama model 'llama3.2:1b' not found (HTTP 404). Please install it with: docker exec insightiq-ollama-1 ollama pull llama3.2:1b. Response: %s", bodySnippet)
+		}
+		return "", fmt.Errorf("Ollama API returned HTTP %d: %s", resp.StatusCode, bodySnippet)
+	}
+
 	var result OllamaResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to decode Ollama response: %w", err)
+	}
+
+	// Validate that we actually got a response
+	if result.Response == "" {
+		return "", fmt.Errorf("Ollama returned empty response for model 'llama3.2:1b'")
 	}
 
 	return result.Response, nil
 }
 
 func (oc *OllamaConnector) AnalyzeData(ctx context.Context, data []map[string]interface{}, question string) (string, error) {
+	oc.logger.Info("AnalyzeData called", "data_count", len(data), "question", question)
+
 	// Check if data is actually an error message
 	if len(data) == 1 {
 		if errMsg, ok := data[0]["error"].(string); ok {
@@ -96,7 +126,14 @@ Question: %s
 
 Provide 2-3 key insights in 50 words or less.`, len(data), string(dataJSON), question)
 
-	return oc.GenerateResponse(ctx, prompt)
+	oc.logger.Info("Calling Ollama GenerateResponse", "prompt_length", len(prompt))
+	response, err := oc.GenerateResponse(ctx, prompt)
+	if err != nil {
+		oc.logger.Error("Ollama GenerateResponse failed", "error", err)
+		return "", err
+	}
+	oc.logger.Info("Ollama GenerateResponse successful", "response_length", len(response))
+	return response, nil
 }
 
 // GenerateVisualizationData creates synthetic data from insights for visualization
@@ -142,14 +179,51 @@ func min(a, b int) int {
 func (oc *OllamaConnector) HealthCheck(ctx context.Context) error {
 	req, err := http.NewRequestWithContext(ctx, "GET", oc.baseURL+"/api/tags", nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create health check request: %w", err)
 	}
 
 	resp, err := oc.client.Do(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("Ollama service is not reachable: %w", err)
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("Ollama health check failed with HTTP %d", resp.StatusCode)
+	}
+
 	return nil
+}
+
+// CheckModelAvailability verifies that the required model is installed
+func (oc *OllamaConnector) CheckModelAvailability(ctx context.Context, modelName string) error {
+	req, err := http.NewRequestWithContext(ctx, "GET", oc.baseURL+"/api/tags", nil)
+	if err != nil {
+		return fmt.Errorf("failed to create model check request: %w", err)
+	}
+
+	resp, err := oc.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to check Ollama models: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("Ollama API returned HTTP %d when checking models", resp.StatusCode)
+	}
+
+	var modelsResp OllamaModelsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&modelsResp); err != nil {
+		return fmt.Errorf("failed to decode models response: %w", err)
+	}
+
+	// Check if the required model is in the list
+	for _, model := range modelsResp.Models {
+		if model.Name == modelName || model.Name == modelName+":latest" {
+			oc.logger.Info("Required Ollama model found", "model", modelName)
+			return nil
+		}
+	}
+
+	return fmt.Errorf("required Ollama model '%s' is not installed. Please run: docker exec insightiq-ollama-1 ollama pull %s", modelName, modelName)
 }

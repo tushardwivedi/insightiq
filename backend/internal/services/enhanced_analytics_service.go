@@ -202,11 +202,15 @@ func (eas *EnhancedAnalyticsService) ProcessQuery(ctx context.Context, req *Enha
 	}
 
 	// 4. Generate comprehensive analysis with enhanced RAG context using intent
+	eas.logger.Info("Generating LLM analysis", "service", "enhanced_analytics", "data_rows", len(combinedData), "query", req.Query)
 	analysis, err := eas.generateAnalysisWithIntentRAG(ctx, combinedData, allData, req.Query, plannerResponse.Intent)
 	if err != nil {
+		eas.logger.Error("Failed to generate LLM analysis", "service", "enhanced_analytics", "error", err)
 		return nil, fmt.Errorf("failed to analyze data: %w", err)
 	}
+	eas.logger.Info("LLM analysis generated successfully", "service", "enhanced_analytics", "analysis_length", len(analysis))
 
+	eas.logger.Info("About to return EnhancedAnalyticsResponse", "service", "enhanced_analytics", "analysis", analysis, "data_count", len(combinedData))
 	return &EnhancedAnalyticsResponse{
 		Query:          req.Query,
 		Data:           combinedData,

@@ -188,6 +188,34 @@ func main() {
 	embeddingService := embedding.NewOllamaEmbeddingService(ollamaURL, "nomic-embed-text", logger)
 	ollamaConn := connectors.NewOllamaConnector(ollamaURL, logger)
 
+	// CRITICAL: Check that required Ollama models are installed
+	checkCtx, checkCancel := context.WithTimeout(ctx, 10*time.Second)
+	defer checkCancel()
+
+	logger.Info("Checking Ollama service availability...")
+	if err := ollamaConn.HealthCheck(checkCtx); err != nil {
+		logger.Error("Ollama service is not available", "error", err)
+		logger.Warn("Continuing startup but LLM analysis will fail until Ollama is available")
+	} else {
+		logger.Info("Ollama service is available, checking required models...")
+
+		// Check for llama3.2:1b model
+		if err := ollamaConn.CheckModelAvailability(checkCtx, "llama3.2:1b"); err != nil {
+			logger.Error("Required Ollama model not found", "error", err)
+			logger.Error("LLM analysis will fail until the model is installed")
+			logger.Info("To fix: docker exec insightiq-ollama-1 ollama pull llama3.2:1b")
+		} else {
+			logger.Info("All required Ollama models are available")
+		}
+
+		// Check for embedding model
+		if err := ollamaConn.CheckModelAvailability(checkCtx, "nomic-embed-text"); err != nil {
+			logger.Error("Required embedding model not found", "error", err)
+			logger.Error("Embeddings and RAG will fail until the model is installed")
+			logger.Info("To fix: docker exec insightiq-ollama-1 ollama pull nomic-embed-text")
+		}
+	}
+
 	// Initialize basic schema ingestion service
 	ingestionService := schema.NewIngestionService(vectorStore, embeddingService, logger)
 
