@@ -101,15 +101,11 @@ export default function InteractiveCharts({ data, insights }: Props) {
   // Process data for different chart types
   const processDataForCharts = () => {
     if (!data || data.length === 0) {
-      console.log('No data available for charts')
       return null
     }
 
-    console.log('Chart data received:', data)
-
     // Detect data type and create appropriate visualizations
     const keys = Object.keys(data[0])
-    console.log('Data keys:', keys)
 
     const hasQuarter = keys.some(k => k.toLowerCase().includes('quarter'))
     const hasRevenue = keys.some(k => k.toLowerCase().includes('revenue'))
@@ -129,8 +125,6 @@ export default function InteractiveCharts({ data, insights }: Props) {
     const hasState = keys.some(k => k.toLowerCase().includes('state'))
     const hasVaccinated = keys.some(k => k.toLowerCase().includes('vaccinated'))
     const hasPercentage = keys.some(k => k.toLowerCase().includes('percentage'))
-
-    console.log('Data flags:', { hasQuarter, hasRevenue, hasCategory, hasMonth, hasOrders })
 
     let charts: any = {}
 
@@ -468,8 +462,6 @@ export default function InteractiveCharts({ data, insights }: Props) {
 
     // GENERIC FALLBACK: If no specific patterns matched, create generic visualizations
     if (Object.keys(charts).length === 0 && data.length > 0) {
-      console.log('No specific pattern matched, generating generic charts')
-
       const firstRow = data[0]
       const allKeys = Object.keys(firstRow)
 
@@ -485,8 +477,6 @@ export default function InteractiveCharts({ data, insights }: Props) {
           stringCols.push(key)
         }
       })
-
-      console.log('Detected columns:', { numericCols, stringCols })
 
       // If we have both categorical and numeric data, create charts
       if (stringCols.length > 0 && numericCols.length > 0) {

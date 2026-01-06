@@ -15,6 +15,39 @@
     --error-color: #FC8181;
     --success-color: #68D391;
     --warning-color: #F6E05E;
+
+    /* Shadcn UI variables in HSL format */
+    --background: 210 40% 6%; /* #1A202C */
+    --foreground: 210 40% 96%; /* #F7FAFC */
+    --card: 210 28% 17%; /* #2D3748 */
+    --card-foreground: 210 40% 96%; /* #F7FAFC */
+    --popover: 210 28% 17%; /* #2D3748 */
+    --popover-foreground: 210 40% 96%; /* #F7FAFC */
+    --primary: 180 100% 45%; /* #4FD1C5 */
+    --primary-foreground: 210 40% 6%; /* #1A202C */
+    --secondary: 210 25% 22%; /* #3A424E */
+    --secondary-foreground: 210 40% 96%; /* #F7FAFC */
+    --muted: 210 25% 22%; /* #3A424E */
+    --muted-foreground: 210 20% 65%; /* #A0AEC0 */
+    --accent: 180 100% 45%; /* #4FD1C5 */
+    --accent-foreground: 210 40% 6%; /* #1A202C */
+    --destructive: 0 84% 60%; /* #FC8181 */
+    --destructive-foreground: 210 40% 96%; /* #F7FAFC */
+    --border: 210 20% 32%; /* #4A5568 */
+    --input: 210 28% 17%; /* #2D3748 */
+    --ring: 180 100% 45%; /* #4FD1C5 */
+    --sidebar-background: 210 28% 17%; /* #2D3748 */
+    --sidebar-foreground: 210 40% 96%; /* #F7FAFC */
+    --sidebar-primary: 180 100% 45%; /* #4FD1C5 */
+    --sidebar-primary-foreground: 210 40% 6%; /* #1A202C */
+    --sidebar-accent: 210 25% 22%; /* #3A424E */
+    --sidebar-accent-foreground: 210 40% 96%; /* #F7FAFC */
+    --sidebar-border: 210 20% 32%; /* #4A5568 */
+    --sidebar-ring: 180 100% 45%; /* #4FD1C5 */
+  }
+
+  * {
+    border-color: hsl(var(--border));
   }
 
   body {
@@ -612,5 +645,17 @@
       padding: 12px;
       font-size: 12px;
     }
+  }
+}
+
+
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
   }
 }

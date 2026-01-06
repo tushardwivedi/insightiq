@@ -4,6 +4,9 @@ import { useState, useRef, useEffect } from 'react'
 import { Send, Mic, MicOff, Upload, FileAudio } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { AnalyticsResponse, VoiceResponse } from '@/types'
+import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
+import { Card, CardContent } from '@/components/ui/card'
 
 interface Props {
   onResult: (result: AnalyticsResponse | VoiceResponse) => void
@@ -170,84 +173,87 @@ export default function CommandBar({ onResult, onLoading }: Props) {
     <>
       {/* Status indicators for voice */}
       {isRecording && (
-        <div className="command-bar-status recording">
-          <div className="status-indicator"></div>
-          <span>Recording... Click the mic again to stop</span>
+        <div className="flex items-center gap-2 px-4 py-2 bg-destructive/10 border border-destructive/20 rounded-lg mb-2 mx-auto max-w-2xl">
+          <div className="w-3 h-3 bg-destructive rounded-full animate-pulse"></div>
+          <span className="text-sm">Recording... Click the mic again to stop</span>
         </div>
       )}
 
       {recordedBlob && (
-        <div className="command-bar-status recorded">
-          <FileAudio className="w-4 h-4" />
-          <span>Audio recorded</span>
-          <button onClick={handleRecordedAudio} disabled={isProcessing} className="process-btn">
+        <div className="flex items-center gap-2 px-4 py-2 bg-green-500/10 border border-green-500/20 rounded-lg mb-2 mx-auto max-w-2xl">
+          <FileAudio className="w-4 h-4 text-green-600" />
+          <span className="text-sm">Audio recorded</span>
+          <Button onClick={handleRecordedAudio} disabled={isProcessing} size="sm" variant="outline">
             Process
-          </button>
+          </Button>
         </div>
       )}
 
       {isProcessing && (
-        <div className="command-bar-status processing">
-          <div className="spinner"></div>
-          <span>Processing audio...</span>
+        <div className="flex items-center gap-2 px-4 py-2 bg-primary/10 border border-primary/20 rounded-lg mb-2 mx-auto max-w-2xl">
+          <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+          <span className="text-sm">Processing audio...</span>
         </div>
       )}
 
       {/* Main Command Bar */}
-      <div className="command-bar-container">
-        <textarea
-          ref={textareaRef}
-          id="agentic-input"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Ask a question or describe the analysis you need..."
-          rows={1}
-          disabled={isDisabled}
-        />
+      <Card className="max-w-2xl mx-auto">
+        <CardContent className="p-3">
+          <div className="flex items-end gap-2">
+            <Textarea
+              ref={textareaRef}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask a question or describe the analysis you need..."
+              rows={1}
+              disabled={isDisabled}
+              className="min-h-[40px] resize-none border-0 shadow-none focus-visible:ring-0 p-0"
+            />
 
-        <button
-          className={`icon-button voice-button ${isRecording ? 'recording' : ''}`}
-          onClick={isRecording ? stopRecording : startRecording}
-          disabled={isSubmitting || isProcessing}
-          aria-label="Use voice input"
-          title={isRecording ? "Stop recording" : "Start voice recording"}
-        >
-          {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-        </button>
+            <Button
+              variant={isRecording ? "destructive" : "outline"}
+              size="icon"
+              onClick={isRecording ? stopRecording : startRecording}
+              disabled={isSubmitting || isProcessing}
+              title={isRecording ? "Stop recording" : "Start voice recording"}
+            >
+              {isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+            </Button>
 
-        <button
-          className="icon-button upload-button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={isDisabled}
-          aria-label="Upload audio file"
-          title="Upload audio file"
-        >
-          <Upload className="w-5 h-5" />
-        </button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isDisabled}
+              title="Upload audio file"
+            >
+              <Upload className="w-4 h-4" />
+            </Button>
 
-        <button
-          className="send-button"
-          onClick={handleTextSubmit}
-          disabled={!query.trim() || isDisabled}
-          aria-label="Send query"
-          title="Send query (Enter)"
-        >
-          {isSubmitting ? (
-            <div className="spinner small"></div>
-          ) : (
-            <Send className="w-5 h-5" />
-          )}
-        </button>
+            <Button
+              onClick={handleTextSubmit}
+              disabled={!query.trim() || isDisabled}
+              size="icon"
+              title="Send query (Enter)"
+            >
+              {isSubmitting ? (
+                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
+            </Button>
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="audio/wav,audio/mp3,audio/mpeg,audio/m4a,audio/webm,audio/ogg"
-          onChange={handleFileUpload}
-          className="hidden"
-        />
-      </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="audio/wav,audio/mp3,audio/mpeg,audio/m4a,audio/webm,audio/ogg"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+          </div>
+        </CardContent>
+      </Card>
     </>
   )
 }

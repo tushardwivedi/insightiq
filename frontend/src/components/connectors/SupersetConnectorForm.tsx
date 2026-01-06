@@ -1,315 +1,337 @@
-'use client'
+"use client";
 
-import { useState, memo, useCallback, useMemo } from 'react'
-import { DataConnector, SupersetConnectorConfig } from '@/types'
-import { apiClient } from '@/lib/api'
+import { useState, memo, useCallback, useMemo } from "react";
+import { DataConnector, SupersetConnectorConfig } from "@/types";
+import { apiClient } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Loader2, CheckCircle, XCircle } from "lucide-react";
 
 interface SupersetConnectorFormProps {
-  onCancel: () => void
-  onSuccess: (connector: DataConnector) => void
-  connector?: DataConnector
+  onCancel: () => void;
+  onSuccess: (connector: DataConnector) => void;
+  connector?: DataConnector;
 }
 
-function SupersetConnectorForm({ onCancel, onSuccess, connector }: SupersetConnectorFormProps) {
+function SupersetConnectorForm({
+  onCancel,
+  onSuccess,
+  connector,
+}: SupersetConnectorFormProps) {
   const [formData, setFormData] = useState({
-    name: connector?.name || '',
-    url: connector?.config.url || '',
-    username: (connector?.config as SupersetConnectorConfig)?.username || '',
-    password: (connector?.config as SupersetConnectorConfig)?.password || '',
-    bearer_token: (connector?.config as SupersetConnectorConfig)?.bearer_token || '',
-  })
-  const [loading, setLoading] = useState(false)
-  const [testing, setTesting] = useState(false)
-  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
-  const [authMethod, setAuthMethod] = useState<'credentials' | 'token'>('credentials')
+    name: connector?.name || "",
+    url: connector?.config.url || "",
+    username: (connector?.config as SupersetConnectorConfig)?.username || "",
+    password: (connector?.config as SupersetConnectorConfig)?.password || "",
+    bearer_token:
+      (connector?.config as SupersetConnectorConfig)?.bearer_token || "",
+  });
+  const [loading, setLoading] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{
+    success: boolean;
+    message: string;
+  } | null>(null);
+  const [authMethod, setAuthMethod] = useState<"credentials" | "token">(
+    "credentials"
+  );
 
   // Memoized change handlers
-  const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData(prev => ({ ...prev, name: e.target.value }))
-  }, [])
+  const handleNameChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setFormData((prev) => ({ ...prev, name: e.target.value }));
+    },
+    []
+  );
 
-  const handleUrlChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData(prev => ({ ...prev, url: e.target.value }))
-  }, [])
+  const handleUrlChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setFormData((prev) => ({ ...prev, url: e.target.value }));
+    },
+    []
+  );
 
-  const handleUsernameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData(prev => ({ ...prev, username: e.target.value }))
-  }, [])
+  const handleUsernameChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setFormData((prev) => ({ ...prev, username: e.target.value }));
+    },
+    []
+  );
 
-  const handlePasswordChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData(prev => ({ ...prev, password: e.target.value }))
-  }, [])
+  const handlePasswordChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setFormData((prev) => ({ ...prev, password: e.target.value }));
+    },
+    []
+  );
 
-  const handleBearerTokenChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setFormData(prev => ({ ...prev, bearer_token: e.target.value }))
-  }, [])
+  const handleBearerTokenChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      setFormData((prev) => ({ ...prev, bearer_token: e.target.value }));
+    },
+    []
+  );
 
-  const handleAuthMethodChange = useCallback((value: 'credentials' | 'token') => {
-    setAuthMethod(value)
-  }, [])
+  const handleAuthMethodChange = useCallback(
+    (value: "credentials" | "token") => {
+      setAuthMethod(value);
+    },
+    []
+  );
 
   const handleCredentialsRadioChange = useCallback(() => {
-    handleAuthMethodChange('credentials')
-  }, [handleAuthMethodChange])
+    handleAuthMethodChange("credentials");
+  }, [handleAuthMethodChange]);
 
   const handleTokenRadioChange = useCallback(() => {
-    handleAuthMethodChange('token')
-  }, [handleAuthMethodChange])
+    handleAuthMethodChange("token");
+  }, [handleAuthMethodChange]);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setTestResult(null)
+    e.preventDefault();
+    setLoading(true);
+    setTestResult(null);
 
     try {
       const config: SupersetConnectorConfig = {
         url: formData.url.trim(),
-        username: authMethod === 'credentials' ? formData.username.trim() : '',
-        password: authMethod === 'credentials' ? formData.password : '',
-        bearer_token: authMethod === 'token' ? formData.bearer_token.trim() : '',
-      }
+        username: authMethod === "credentials" ? formData.username.trim() : "",
+        password: authMethod === "credentials" ? formData.password : "",
+        bearer_token:
+          authMethod === "token" ? formData.bearer_token.trim() : "",
+      };
 
       const connectorData = {
         name: formData.name.trim(),
-        type: 'superset' as const,
+        type: "superset" as const,
         config,
-      }
+      };
 
-      let result: DataConnector
+      let result: DataConnector;
       if (connector) {
-        result = await apiClient.updateConnector(connector.id, connectorData)
+        result = await apiClient.updateConnector(connector.id, connectorData);
       } else {
-        result = await apiClient.createConnector(connectorData)
+        result = await apiClient.createConnector(connectorData);
       }
 
-      onSuccess(result)
+      onSuccess(result);
     } catch (error: any) {
-      console.error('Failed to save connector:', error)
+      console.error("Failed to save connector:", error);
       setTestResult({
         success: false,
-        message: error.message || 'Failed to save connector. Please try again.'
-      })
+        message: error.message || "Failed to save connector. Please try again.",
+      });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleTestConnection = async () => {
-    setTesting(true)
-    setTestResult(null)
+    setTesting(true);
+    setTestResult(null);
 
     try {
       const config: SupersetConnectorConfig = {
         url: formData.url.trim(),
-        username: authMethod === 'credentials' ? formData.username.trim() : '',
-        password: authMethod === 'credentials' ? formData.password : '',
-        bearer_token: authMethod === 'token' ? formData.bearer_token.trim() : '',
-      }
+        username: authMethod === "credentials" ? formData.username.trim() : "",
+        password: authMethod === "credentials" ? formData.password : "",
+        bearer_token:
+          authMethod === "token" ? formData.bearer_token.trim() : "",
+      };
 
       const result = await apiClient.testConnectorConfig({
-        type: 'superset',
+        type: "superset",
         config,
-      })
+      });
 
       setTestResult({
         success: result.success,
-        message: result.message || (result.success ? 'Connection successful!' : 'Connection failed')
-      })
+        message:
+          result.message ||
+          (result.success ? "Connection successful!" : "Connection failed"),
+      });
     } catch (error: any) {
-      console.error('Connection test failed:', error)
+      console.error("Connection test failed:", error);
       setTestResult({
         success: false,
-        message: error.message || 'Connection test failed. Please check your settings.'
-      })
+        message:
+          error.message ||
+          "Connection test failed. Please check your settings.",
+      });
     } finally {
-      setTesting(false)
+      setTesting(false);
     }
-  }
+  };
 
   const isFormValid = useMemo(() => {
     return (
       formData.name.trim() &&
       formData.url.trim() &&
-      (authMethod === 'credentials'
+      (authMethod === "credentials"
         ? formData.username.trim() && formData.password.trim()
-        : formData.bearer_token.trim()
-      )
-    )
-  }, [formData.name, formData.url, formData.username, formData.password, formData.bearer_token, authMethod])
+        : formData.bearer_token.trim())
+    );
+  }, [
+    formData.name,
+    formData.url,
+    formData.username,
+    formData.password,
+    formData.bearer_token,
+    authMethod,
+  ]);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-bold !text-black mb-1">
-          {connector ? 'Edit' : 'Add'} Superset Connector
-        </h3>
-        <p className="text-sm font-medium text-gray-800">
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          📊 {connector ? "Edit" : "Add"} Superset Connector
+        </CardTitle>
+        <CardDescription>
           Connect to your Apache Superset instance for analytics data
-        </p>
-      </div>
+        </CardDescription>
+      </CardHeader>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Name */}
-        <div>
-          <label htmlFor="name" className="block text-sm font-bold !text-black mb-1">
-            Connection Name *
-          </label>
-          <input
-            type="text"
-            id="name"
-            value={formData.name}
-            onChange={handleNameChange}
-            placeholder="My Superset Instance"
-            className="w-full px-3 py-2 border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder:text-gray-600 font-medium dark:text-gray-900 dark:bg-white dark:placeholder-gray-500"
-            style={{ color: '#111827', backgroundColor: '#ffffff' }}
-            required
-          />
-        </div>
-
-        {/* URL */}
-        <div>
-          <label htmlFor="url" className="block text-sm font-bold !text-black mb-1">
-            Superset URL *
-          </label>
-          <input
-            type="url"
-            id="url"
-            value={formData.url}
-            onChange={handleUrlChange}
-            placeholder="https://superset.example.com"
-            className="w-full px-3 py-2 border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder:text-gray-600 font-medium dark:text-gray-900 dark:bg-white dark:placeholder-gray-500"
-            style={{ color: '#111827', backgroundColor: '#ffffff' }}
-            required
-          />
-        </div>
-
-        {/* Authentication Method */}
-        <div>
-          <label className="block text-sm font-bold !text-black mb-2">
-            Authentication Method
-          </label>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Name */}
           <div className="space-y-2">
-            <label className="flex items-center">
-              <input
-                type="radio"
-                value="credentials"
-                checked={authMethod === 'credentials'}
-                onChange={handleCredentialsRadioChange}
-                className="mr-2"
-              />
-              <span className="text-sm font-medium !text-black">Username & Password</span>
-            </label>
-            <label className="flex items-center">
-              <input
-                type="radio"
-                value="token"
-                checked={authMethod === 'token'}
-                onChange={handleTokenRadioChange}
-                className="mr-2"
-              />
-              <span className="text-sm font-medium !text-black">Bearer Token</span>
-            </label>
-          </div>
-        </div>
-
-        {/* Authentication Fields */}
-        {authMethod === 'credentials' ? (
-          <>
-            <div>
-              <label htmlFor="username" className="block text-sm font-bold !text-black mb-1">
-                Username *
-              </label>
-              <input
-                type="text"
-                id="username"
-                value={formData.username}
-                onChange={handleUsernameChange}
-                placeholder="admin"
-                className="w-full px-3 py-2 border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder:text-gray-600 font-medium dark:text-gray-900 dark:bg-white dark:placeholder-gray-500"
-                style={{ color: '#111827', backgroundColor: '#ffffff' }}
-                required={authMethod === 'credentials'}
-              />
-            </div>
-
-            <div>
-              <label htmlFor="password" className="block text-sm font-bold !text-black mb-1">
-                Password *
-              </label>
-              <input
-                type="password"
-                id="password"
-                value={formData.password}
-                onChange={handlePasswordChange}
-                placeholder="••••••••"
-                className="w-full px-3 py-2 border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder:text-gray-600 font-medium dark:text-gray-900 dark:bg-white dark:placeholder-gray-500"
-                style={{ color: '#111827', backgroundColor: '#ffffff' }}
-                required={authMethod === 'credentials'}
-              />
-            </div>
-          </>
-        ) : (
-          <div>
-            <label htmlFor="bearer_token" className="block text-sm font-bold !text-black mb-1">
-              Bearer Token *
-            </label>
-            <textarea
-              id="bearer_token"
-              value={formData.bearer_token}
-              onChange={handleBearerTokenChange}
-              placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..."
-              rows={3}
-              className="w-full px-3 py-2 border-2 border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none bg-white text-gray-900 placeholder:text-gray-600 font-medium dark:text-gray-900 dark:bg-white dark:placeholder-gray-500"
-              style={{ color: '#111827', backgroundColor: '#ffffff' }}
-              required={authMethod === 'token'}
+            <Label htmlFor="name">Connection Name *</Label>
+            <Input
+              type="text"
+              id="name"
+              value={formData.name}
+              onChange={handleNameChange}
+              placeholder="My Superset Instance"
+              required
             />
-            <p className="text-xs font-medium text-gray-700 mt-1">
-              Generate a bearer token from Superset's API settings
-            </p>
           </div>
-        )}
 
-        {/* Test Result */}
-        {testResult && (
-          <div className={`p-3 rounded-md ${testResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
-            <div className="flex items-center gap-2">
-              <span className={testResult.success ? 'text-green-600' : 'text-red-600'}>
-                {testResult.success ? '✓' : '✗'}
-              </span>
-              <span className={`text-sm ${testResult.success ? 'text-green-800' : 'text-red-800'}`}>
-                {testResult.message}
-              </span>
+          {/* URL */}
+          <div className="space-y-2">
+            <Label htmlFor="url">Superset URL *</Label>
+            <Input
+              type="url"
+              id="url"
+              value={formData.url}
+              onChange={handleUrlChange}
+              placeholder="https://superset.example.com"
+              required
+            />
+          </div>
+
+          {/* Authentication Method */}
+          <div className="space-y-3">
+            <Label>Authentication Method</Label>
+            <RadioGroup
+              value={authMethod}
+              onValueChange={handleAuthMethodChange}
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="credentials" id="credentials" />
+                <Label htmlFor="credentials">Username & Password</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="token" id="token" />
+                <Label htmlFor="token">Bearer Token</Label>
+              </div>
+            </RadioGroup>
+          </div>
+
+          {/* Authentication Fields */}
+          {authMethod === "credentials" ? (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="username">Username *</Label>
+                <Input
+                  type="text"
+                  id="username"
+                  value={formData.username}
+                  onChange={handleUsernameChange}
+                  placeholder="admin"
+                  required={authMethod === "credentials"}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="password">Password *</Label>
+                <Input
+                  type="password"
+                  id="password"
+                  value={formData.password}
+                  onChange={handlePasswordChange}
+                  placeholder="••••••••"
+                  required={authMethod === "credentials"}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="bearer_token">Bearer Token *</Label>
+              <Textarea
+                id="bearer_token"
+                value={formData.bearer_token}
+                onChange={handleBearerTokenChange}
+                placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+                rows={3}
+                className="resize-none"
+                required={authMethod === "token"}
+              />
+              <p className="text-xs text-muted-foreground">
+                Generate a bearer token from Superset's API settings
+              </p>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Actions */}
-        <div className="flex gap-3 pt-4">
-          <button
-            type="button"
-            onClick={handleTestConnection}
-            disabled={!isFormValid || testing}
-            className="flex-1 px-4 py-2 border border-blue-600 text-blue-600 rounded-md hover:bg-blue-50 disabled:bg-gray-100 disabled:text-gray-400 disabled:border-gray-300 disabled:cursor-not-allowed transition-colors"
-          >
-            {testing ? 'Testing...' : 'Test Connection'}
-          </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={!isFormValid || loading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-          >
-            {loading ? 'Saving...' : connector ? 'Update' : 'Save'}
-          </button>
-        </div>
-      </form>
-    </div>
-  )
+          {/* Test Result */}
+          {testResult && (
+            <Alert variant={testResult.success ? "default" : "destructive"}>
+              <div className="flex items-center gap-2">
+                {testResult.success ? (
+                  <CheckCircle className="h-4 w-4" />
+                ) : (
+                  <XCircle className="h-4 w-4" />
+                )}
+                <AlertDescription>{testResult.message}</AlertDescription>
+              </div>
+            </Alert>
+          )}
+
+          {/* Actions */}
+          <div className="flex flex-wrap gap-3 pt-4">
+            <Button
+              type="button"
+              onClick={handleTestConnection}
+              disabled={!isFormValid || testing}
+              variant="outline"
+              className="flex-1"
+            >
+              {testing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {testing ? "Testing..." : "Test Connection"}
+            </Button>
+            <br />
+            <Button type="button" onClick={onCancel} variant="outline">
+              Cancel
+            </Button>
+            <Button type="submit" disabled={!isFormValid || loading}>
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {loading ? "Saving..." : connector ? "Update" : "Save"}
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  );
 }
 
-export default memo(SupersetConnectorForm)
+export default memo(SupersetConnectorForm);

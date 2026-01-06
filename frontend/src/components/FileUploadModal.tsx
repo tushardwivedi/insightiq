@@ -158,7 +158,7 @@ export default function FileUploadModal({ isOpen, onClose, onUploadComplete }: P
         <div className="p-6">
           <div
             className={`relative border-2 border-dashed rounded-lg p-12 transition-all ${
-              dragActive ? 'border-accent scale-[1.02]' : 'border-border'
+              dragActive ? 'border-accent scale-[1.02]' : 'border'
             }`}
             style={{
               borderColor: dragActive ? 'var(--accent-color)' : 'var(--border-color)',

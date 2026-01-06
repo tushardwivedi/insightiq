@@ -18,15 +18,15 @@ export default function ConnectorCard({ connector, onTest, onEdit, onDelete }: C
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'connected':
-        return 'bg-green-100 text-green-800 border-green-200'
+        return { background: '#10b98120', color: '#10b981', border: '#10b98140' }
       case 'disconnected':
-        return 'bg-gray-100 text-gray-800 border-gray-200'
+        return { background: 'var(--hover-surface)', color: 'var(--text-secondary)', border: 'var(--border-color)' }
       case 'error':
-        return 'bg-red-100 text-red-800 border-red-200'
+        return { background: '#ef444420', color: '#ef4444', border: '#ef444440' }
       case 'testing':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200'
+        return { background: '#f59e0b20', color: '#f59e0b', border: '#f59e0b40' }
       default:
-        return 'bg-gray-100 text-gray-800 border-gray-200'
+        return { background: 'var(--hover-surface)', color: 'var(--text-secondary)', border: 'var(--border-color)' }
     }
   }
 
@@ -91,35 +91,55 @@ export default function ConnectorCard({ connector, onTest, onEdit, onDelete }: C
   }
 
   return (
-    <div className="relative bg-gray-50 border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow">
+    <div
+      className="relative border rounded-lg p-4 transition-all hover:shadow-md"
+      style={{
+        background: 'var(--surface-color)',
+        borderColor: 'var(--border-color)'
+      }}
+      onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--accent-color)'}
+      onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border-color)'}
+    >
       {/* Header */}
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">
           <span className="text-2xl">{getTypeIcon(connector.type)}</span>
           <div className="flex-1">
-            <h3 className="font-medium text-gray-900">{connector.name}</h3>
-            <p className="text-sm text-gray-500 capitalize">{connector.type}</p>
+            <h3 className="font-medium" style={{ color: 'var(--text-primary)' }}>{connector.name}</h3>
+            <p className="text-sm capitalize" style={{ color: 'var(--text-secondary)' }}>{connector.type}</p>
           </div>
         </div>
 
         <div className="relative">
           <button
             onClick={() => setShowMenu(!showMenu)}
-            className="p-1 hover:bg-gray-200 rounded transition-colors"
+            className="p-1 rounded transition-colors"
+            style={{ color: 'var(--text-secondary)' }}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--hover-surface)'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
           >
-            <svg className="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
               <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
             </svg>
           </button>
 
           {showMenu && (
-            <div className="absolute right-0 top-8 w-32 bg-white border border-gray-200 rounded-md shadow-lg z-10">
+            <div
+              className="absolute right-0 top-8 w-32 border rounded-md shadow-lg z-10"
+              style={{
+                background: 'var(--surface-color)',
+                borderColor: 'var(--border-color)'
+              }}
+            >
               <button
                 onClick={() => {
                   onTest()
                   setShowMenu(false)
                 }}
-                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
+                className="w-full px-3 py-2 text-left text-sm transition-colors"
+                style={{ color: 'var(--text-primary)' }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--hover-surface)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                 disabled={connector.status === 'testing'}
               >
                 Test Connection
@@ -129,7 +149,10 @@ export default function ConnectorCard({ connector, onTest, onEdit, onDelete }: C
                   // TODO: Implement edit functionality
                   setShowMenu(false)
                 }}
-                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
+                className="w-full px-3 py-2 text-left text-sm transition-colors"
+                style={{ color: 'var(--text-primary)' }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--hover-surface)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
               >
                 Edit
               </button>
@@ -138,7 +161,10 @@ export default function ConnectorCard({ connector, onTest, onEdit, onDelete }: C
                   handleDelete()
                   setShowMenu(false)
                 }}
-                className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                className="w-full px-3 py-2 text-left text-sm transition-colors"
+                style={{ color: '#ef4444' }}
+                onMouseEnter={(e) => e.currentTarget.style.background = '#ef444420'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                 disabled={deleting}
               >
                 {deleting ? 'Deleting...' : 'Delete'}
@@ -150,14 +176,17 @@ export default function ConnectorCard({ connector, onTest, onEdit, onDelete }: C
 
       {/* Status */}
       <div className="flex items-center justify-between mb-2">
-        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(connector.status)}`}>
+        <span
+          className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border"
+          style={getStatusColor(connector.status)}
+        >
           <span>{getStatusIcon(connector.status)}</span>
           {connector.status.charAt(0).toUpperCase() + connector.status.slice(1)}
         </span>
       </div>
 
       {/* Connection Details */}
-      <div className="text-xs text-gray-500 space-y-1">
+      <div className="text-xs space-y-1" style={{ color: 'var(--text-secondary)' }}>
         <div className="flex justify-between">
           <span>URL:</span>
           <span className="truncate ml-2" title={connector.config.url}>

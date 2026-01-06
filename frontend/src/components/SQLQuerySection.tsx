@@ -1,9 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { Database, Play } from 'lucide-react'
+import { Database, Play, History, Bookmark } from 'lucide-react'
 import { apiClient } from '@/lib/api'
 import { AnalyticsResponse } from '@/types'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import SQLEditor from './SQLEditor'
 
 interface Props {
@@ -54,54 +57,34 @@ export default function SQLQuerySection({ onResult, onLoading }: Props) {
   }
 
   return (
-    <div className="card shadow-md">
-      <div className="flex items-center justify-between mb-4">
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white' }}>
+          <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 text-white">
             <Database className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Query Workspace</h2>
-            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Write and execute SQL queries</p>
+            <h3 className="text-lg font-semibold">Query Workspace</h3>
+            <p className="text-sm text-muted-foreground">Write and execute SQL queries</p>
           </div>
         </div>
 
         {/* Quick Actions */}
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className="px-3 py-1.5 text-xs rounded-md transition-colors"
-            style={{
-              background: 'var(--hover-surface)',
-              color: 'var(--text-secondary)',
-              border: '1px solid var(--border-color)'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
-            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
-          >
+          <Button variant="outline" size="sm">
+            <History className="w-4 h-4 mr-2" />
             History
-          </button>
-          <button
-            type="button"
-            className="px-3 py-1.5 text-xs rounded-md transition-colors"
-            style={{
-              background: 'var(--hover-surface)',
-              color: 'var(--text-secondary)',
-              border: '1px solid var(--border-color)'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
-            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
-          >
+          </Button>
+          <Button variant="outline" size="sm">
+            <Bookmark className="w-4 h-4 mr-2" />
             Saved
-          </button>
+          </Button>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
-            SQL Query
-          </label>
+        <div className="space-y-2">
+          <Label htmlFor="sql-query">SQL Query</Label>
           <SQLEditor
             value={sql}
             onChange={setSql}
@@ -109,76 +92,49 @@ export default function SQLQuerySection({ onResult, onLoading }: Props) {
           />
         </div>
 
-        <div>
-          <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
-            Analysis Question
-          </label>
-          <input
+        <div className="space-y-2">
+          <Label htmlFor="analysis-question">Analysis Question</Label>
+          <Input
+            id="analysis-question"
             type="text"
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
-            className="w-full p-3 rounded-lg transition-all"
-            style={{
-              background: 'var(--surface-color)',
-              color: 'var(--text-primary)',
-              border: '1px solid var(--border-color)'
-            }}
             disabled={isSubmitting}
             placeholder="What insights can you provide from this data?"
-            onFocus={(e) => e.currentTarget.style.borderColor = 'var(--accent-color)'}
-            onBlur={(e) => e.currentTarget.style.borderColor = 'var(--border-color)'}
           />
         </div>
 
         <div className="flex gap-3">
-          <button
+          <Button
             type="submit"
             disabled={!sql.trim() || !question.trim() || isSubmitting}
-            className="flex-1 px-4 py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2"
-            style={{
-              background: isSubmitting || !sql.trim() || !question.trim()
-                ? 'var(--border-color)'
-                : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              color: 'white',
-              cursor: isSubmitting || !sql.trim() || !question.trim() ? 'not-allowed' : 'pointer'
-            }}
+            className="flex-1"
+            size="lg"
           >
             {isSubmitting ? (
               <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                 Executing Query...
               </>
             ) : (
               <>
-                <Play className="w-4 h-4" />
+                <Play className="w-4 h-4 mr-2" />
                 Execute & Analyze
               </>
             )}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="outline"
             onClick={() => {
               setSql("SELECT * FROM sample_sales LIMIT 10")
               setQuestion("What insights can you provide from this data?")
             }}
-            className="px-4 py-3 rounded-lg font-medium transition-colors"
-            style={{
-              background: 'var(--hover-surface)',
-              color: 'var(--text-secondary)',
-              border: '1px solid var(--border-color)'
-            }}
             disabled={isSubmitting}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'var(--border-color)'
-              e.currentTarget.style.color = 'var(--text-primary)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'var(--hover-surface)'
-              e.currentTarget.style.color = 'var(--text-secondary)'
-            }}
+            size="lg"
           >
             Clear
-          </button>
+          </Button>
         </div>
       </form>
     </div>
