@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { apiClient } from "@/lib/api";
 import { motion } from "framer-motion";
+import { useTheme } from "@/contexts/ThemeContext";
 import {
   Settings,
   User,
@@ -21,10 +22,14 @@ import {
   Smartphone,
   Save,
   Check,
-  Camera
+  Camera,
+  Moon,
+  Sun,
+  Monitor
 } from "lucide-react";
 
 export default function SettingsPage() {
+  const { theme, setTheme, accentColor, setAccentColor } = useTheme();
   const [settings, setSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -352,32 +357,68 @@ export default function SettingsPage() {
                 <div className="space-y-2">
                   <Label>Theme</Label>
                   <div className="grid grid-cols-3 gap-4">
-                    <div className="p-4 rounded-lg border-2 border-primary cursor-pointer">
-                      <div className="h-16 rounded bg-slate-900 mb-2" />
-                      <p className="font-medium text-sm">Dark</p>
+                    <div
+                      className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                        theme === "dark" ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+                      }`}
+                      onClick={() => setTheme("dark")}
+                    >
+                      <div className="h-16 rounded bg-slate-900 mb-2 flex items-center justify-center">
+                        <Moon className="w-6 h-6 text-slate-400" />
+                      </div>
+                      <p className="font-medium text-sm text-center">Dark</p>
                     </div>
-                    <div className="p-4 rounded-lg border cursor-pointer hover:border-primary">
-                      <div className="h-16 rounded bg-white border mb-2" />
-                      <p className="font-medium text-sm">Light</p>
+                    <div
+                      className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                        theme === "light" ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+                      }`}
+                      onClick={() => setTheme("light")}
+                    >
+                      <div className="h-16 rounded bg-white border mb-2 flex items-center justify-center">
+                        <Sun className="w-6 h-6 text-amber-500" />
+                      </div>
+                      <p className="font-medium text-sm text-center">Light</p>
                     </div>
-                    <div className="p-4 rounded-lg border cursor-pointer hover:border-primary">
-                      <div className="h-16 rounded bg-gradient-to-br from-slate-900 to-white mb-2" />
-                      <p className="font-medium text-sm">System</p>
+                    <div
+                      className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                        theme === "system" ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+                      }`}
+                      onClick={() => setTheme("system")}
+                    >
+                      <div className="h-16 rounded bg-gradient-to-br from-slate-900 to-white mb-2 flex items-center justify-center">
+                        <Monitor className="w-6 h-6 text-slate-600" />
+                      </div>
+                      <p className="font-medium text-sm text-center">System</p>
                     </div>
                   </div>
                 </div>
 
                 <div className="space-y-2">
                   <Label>Accent Color</Label>
-                  <div className="flex gap-2">
-                    {["#4fd1c5", "#6366f1", "#8b5cf6", "#ec4899", "#f59e0b"].map((color) => (
+                  <div className="flex gap-3">
+                    {[
+                      { name: "cyan", color: "#4fd1c5", bg: "bg-teal-400" },
+                      { name: "indigo", color: "#6366f1", bg: "bg-indigo-500" },
+                      { name: "purple", color: "#8b5cf6", bg: "bg-purple-500" },
+                      { name: "pink", color: "#ec4899", bg: "bg-pink-500" },
+                      { name: "orange", color: "#f59e0b", bg: "bg-amber-500" }
+                    ].map((item) => (
                       <button
-                        key={color}
-                        className="w-10 h-10 rounded-full border-2 hover:scale-110 transition-transform"
-                        style={{ backgroundColor: color }}
+                        key={item.name}
+                        onClick={() => setAccentColor(item.name as any)}
+                        className={`w-12 h-12 rounded-full border-2 transition-all ${
+                          accentColor === item.name
+                            ? "border-white scale-110 shadow-lg"
+                            : "border-transparent hover:scale-105"
+                        }`}
+                        style={{ backgroundColor: item.color }}
+                        title={item.name.charAt(0).toUpperCase() + item.name.slice(1)}
                       />
                     ))}
                   </div>
+                  <p className="text-sm text-muted-foreground">
+                    Current: <span className="capitalize">{accentColor}</span>
+                  </p>
                 </div>
               </CardContent>
             </Card>
