@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Header from '@/components/Header'
-import CompactSystemStatus from '@/components/CompactSystemStatus'
+import HeaderActions from '@/components/HeaderActions'
 import { apiClient } from '@/lib/api'
 import { HealthCheck } from '@/types'
 import { useAuth } from '@/contexts/AuthContext'
@@ -64,11 +64,13 @@ export default function AppLayoutContent({ children }: AppLayoutContentProps) {
       <AppSidebar />
       <SidebarInset>
         {/* Sticky Header */}
-        <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <header className="flex h-14 shrink-0 items-center gap-4 border-b px-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <SidebarTrigger className="-ml-1" />
           <div className="flex-1 flex items-center justify-between">
+            {/* Logo & Brand on the left */}
             <Header />
-            <CompactSystemStatus health={health} />
+            {/* All other actions on the right */}
+            <HeaderActions health={health} />
           </div>
         </header>
 
