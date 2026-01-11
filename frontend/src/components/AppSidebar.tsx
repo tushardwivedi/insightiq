@@ -7,6 +7,8 @@ import ConnectorCard from "./ConnectorCard";
 import SupersetConnectorForm from "./connectors/SupersetConnectorForm";
 import FileUploadModal from "./FileUploadModal";
 import UploadedFilesList from "./UploadedFilesList";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   Sidebar,
   SidebarContent,
@@ -32,11 +34,17 @@ import {
   FileText,
   ChevronLeft,
   Upload,
+  LayoutDashboard,
+  Sparkles,
+  Zap,
+  FolderOpen,
+  History,
 } from "lucide-react";
 
 export function AppSidebar() {
   const { state } = useSidebar()
   const isCollapsed = state === 'collapsed'
+  const pathname = usePathname()
 
   const [connectors, setConnectors] = useState<DataConnector[]>([]);
   const [loading, setLoading] = useState(false);
@@ -153,12 +161,43 @@ export function AppSidebar() {
     },
   ];
 
+  const mainNavItems = [
+    { href: "/app", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/editor", label: "Query Editor", icon: Zap },
+  ];
+
+  const secondaryNavItems = [
+    { href: "/history", label: "Query History", icon: History },
+    { href: "/connectors", label: "Data Sources", icon: Database },
+    { href: "/files", label: "Uploaded Files", icon: FolderOpen },
+    { href: "/queries", label: "Saved Queries", icon: FileText },
+    { href: "/analytics", label: "Analytics", icon: BarChart3 },
+    { href: "/reports", label: "Reports", icon: FileText },
+    { href: "/team", label: "Team", icon: Settings },
+    { href: "/settings", label: "Settings", icon: Settings },
+  ];
+
   const renderContent = () => {
-    // When collapsed, show minimal content
     if (isCollapsed) {
       return (
         <div className="flex flex-col items-center space-y-4 py-4">
-          {/* Collapsed Add Button - Icon only */}
+          {mainNavItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                pathname === item.href
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-muted text-muted-foreground"
+              }`}
+              title={item.label}
+            >
+              <item.icon className="w-4 h-4" />
+            </Link>
+          ))}
+
+          <div className="w-6 h-px bg-border my-2" />
+
           <button
             onClick={() => setShowAddForm(true)}
             className="w-8 h-8 rounded-lg transition-colors flex items-center justify-center"
@@ -168,7 +207,6 @@ export function AppSidebar() {
             <Plus className="w-4 h-4" />
           </button>
 
-          {/* Collapsed Connector Status Indicators */}
           {connectors.slice(0, 3).map((connector) => (
             <div
               key={connector.id}
@@ -196,7 +234,6 @@ export function AppSidebar() {
     if (showAddForm) {
       return (
         <>
-          {/* Back Button */}
           <button
             onClick={handleBackToConnectors}
             className="mb-4 flex items-center gap-2 transition-colors"
@@ -335,16 +372,67 @@ export function AppSidebar() {
 
     return (
       <>
-        {/* Add Connector Button */}
-        <button
-          onClick={() => setShowAddForm(true)}
-          className="btn-primary w-full mb-4 px-4 py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
-        >
-          <Plus className="w-5 h-5" />
-          Add Data Source
-        </button>
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
+            Navigation
+          </SidebarGroupLabel>
+          <SidebarMenu>
+            {mainNavItems.map((item) => (
+              <SidebarMenuItem key={item.href}>
+                <SidebarMenuButton asChild isActive={pathname === item.href}>
+                  <Link href={item.href} className="flex items-center gap-3">
+                    <item.icon className="w-5 h-5" />
+                    <span>{item.label}</span>
+                    {item.href === '/editor' && (
+                      <Badge variant="secondary" className="ml-auto text-xs">
+                        <Sparkles className="w-3 h-3 mr-1" />
+                        AI
+                      </Badge>
+                    )}
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
+        </SidebarGroup>
 
-        {/* Connectors List */}
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-xs uppercase tracking-wider text-muted-foreground mb-2 mt-4">
+            Quick Access
+          </SidebarGroupLabel>
+          <SidebarMenu>
+            {secondaryNavItems.map((item) => (
+              <SidebarMenuItem key={item.href}>
+                <SidebarMenuButton asChild isActive={pathname === item.href}>
+                  <Link href={item.href} className="flex items-center gap-3">
+                    <item.icon className="w-5 h-5" />
+                    <span>{item.label}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
+        </SidebarGroup>
+
+        <div className="w-full h-px bg-border my-4" />
+
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
+            Data Sources
+          </SidebarGroupLabel>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => setShowAddForm(true)}
+                className="w-full"
+              >
+                <Plus className="w-5 h-5" />
+                <span>Add Data Source</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroup>
+
         {loading ? (
           <div className="flex items-center justify-center py-8">
             <div
@@ -370,7 +458,7 @@ export function AppSidebar() {
             </p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-3 mt-3">
             {connectors.map((connector) => (
               <ConnectorCard
                 key={connector.id}
@@ -392,7 +480,7 @@ export function AppSidebar() {
         style={
           {
             background: "var(--surface-color)",
-            "--sidebar-width": "20rem", // 320px - wider than default 16rem
+            "--sidebar-width": "20rem",
           } as React.CSSProperties
         }
         collapsible="icon"
@@ -404,12 +492,22 @@ export function AppSidebar() {
           {isCollapsed ? (
             <Database className="w-6 h-6" style={{ color: 'var(--accent-color)' }} />
           ) : (
-            <h2
-              className="text-lg font-semibold"
-              style={{ color: "var(--text-primary)" }}
-            >
-              Data Connectors
-            </h2>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                <DatabaseIcon className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h2
+                  className="text-base font-semibold"
+                  style={{ color: "var(--text-primary)" }}
+                >
+                  InsightIQ
+                </h2>
+                <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                  Analytics Platform
+                </p>
+              </div>
+            </div>
           )}
         </SidebarHeader>
 
@@ -430,7 +528,6 @@ export function AppSidebar() {
         </SidebarFooter>
       </Sidebar>
 
-      {/* File Upload Modal */}
       <FileUploadModal
         isOpen={showFileUploadModal}
         onClose={() => setShowFileUploadModal(false)}

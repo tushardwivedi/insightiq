@@ -208,6 +208,98 @@ class ApiClient {
       method: 'DELETE',
     });
   }
+
+  async getQueryHistory(limit?: number, offset?: number): Promise<{ data: any[]; limit: number; offset: number; count: number }> {
+    const params = new URLSearchParams();
+    if (limit) params.set('limit', limit.toString());
+    if (offset) params.set('offset', offset.toString());
+    return this.request<{ data: any[]; limit: number; offset: number; count: number }>(`/query-history?${params.toString()}`);
+  }
+
+  async getQueryHistoryStats(): Promise<any> {
+    return this.request<any>('/query-history/stats');
+  }
+
+  async deleteQueryHistory(id: string): Promise<{ success: boolean; message: string }> {
+    const sanitizedId = id.replace(/[^a-zA-Z0-9-_]/g, '');
+    return this.request<{ success: boolean; message: string }>(`/query-history?id=${sanitizedId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getSavedQueries(): Promise<any[]> {
+    return this.request<any[]>('/saved-queries');
+  }
+
+  async saveQuery(query: { name: string; sql: string; description?: string }): Promise<any> {
+    return this.request<any>('/saved-queries', {
+      method: 'POST',
+      body: JSON.stringify(query),
+    });
+  }
+
+  async deleteSavedQuery(id: string): Promise<void> {
+    const sanitizedId = id.replace(/[^a-zA-Z0-9-_]/g, '');
+    return this.request<void>(`/saved-queries/${sanitizedId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getAnalytics(): Promise<any> {
+    return this.request<any>('/analytics');
+  }
+
+  async getReports(): Promise<any[]> {
+    return this.request<any[]>('/reports');
+  }
+
+  async getReport(id: string): Promise<any> {
+    const sanitizedId = id.replace(/[^a-zA-Z0-9-_]/g, '');
+    return this.request<any>(`/reports/${sanitizedId}`);
+  }
+
+  async createReport(report: { name: string; description?: string; query: string }): Promise<any> {
+    return this.request<any>('/reports', {
+      method: 'POST',
+      body: JSON.stringify(report),
+    });
+  }
+
+  async deleteReport(id: string): Promise<void> {
+    const sanitizedId = id.replace(/[^a-zA-Z0-9-_]/g, '');
+    return this.request<void>(`/reports/${sanitizedId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getTeamMembers(): Promise<any[]> {
+    return this.request<any[]>('/team');
+  }
+
+  async inviteTeamMember(email: string, role: string): Promise<any> {
+    return this.request<any>('/team/invite', {
+      method: 'POST',
+      body: JSON.stringify({ email, role }),
+    });
+  }
+
+  async removeTeamMember(id: string): Promise<void> {
+    const sanitizedId = id.replace(/[^a-zA-Z0-9-_]/g, '');
+    return this.request<void>(`/team/${sanitizedId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getUserSettings(): Promise<any> {
+    return this.request<any>('/settings');
+  }
+
+  async updateUserSettings(settings: any): Promise<any> {
+    return this.request<any>('/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    });
+  }
 }
 
 export const apiClient = new ApiClient();
