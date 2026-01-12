@@ -3,11 +3,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Header from '@/components/Header'
-import CompactSystemStatus from '@/components/CompactSystemStatus'
-import ConnectorSidebar from '@/components/ConnectorSidebar'
+import HeaderActions from '@/components/HeaderActions'
 import { apiClient } from '@/lib/api'
 import { HealthCheck } from '@/types'
 import { useAuth } from '@/contexts/AuthContext'
+import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar'
+import { AppSidebar } from '@/components/AppSidebar'
 
 interface AppLayoutContentProps {
   children: React.ReactNode
@@ -17,15 +18,6 @@ export default function AppLayoutContent({ children }: AppLayoutContentProps) {
   const router = useRouter()
   const { isAuthenticated, isLoading } = useAuth()
   const [health, setHealth] = useState<HealthCheck | null>(null)
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-
-  const handleCloseSidebar = useCallback(() => {
-    setSidebarOpen(false)
-  }, [])
-
-  const handleOpenSidebar = useCallback(() => {
-    setSidebarOpen(true)
-  }, [])
 
   const checkHealth = useCallback(async () => {
     try {
@@ -53,10 +45,10 @@ export default function AppLayoutContent({ children }: AppLayoutContentProps) {
   // Show loading state while checking authentication
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--primary-background)' }}>
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4" style={{ borderColor: 'var(--accent-color)' }}></div>
-          <p style={{ color: 'var(--text-secondary)' }}>Loading...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading...</p>
         </div>
       </div>
     )
@@ -68,49 +60,25 @@ export default function AppLayoutContent({ children }: AppLayoutContentProps) {
   }
 
   return (
-    <div className="flex h-screen" style={{ background: 'var(--primary-background)' }}>
-      {/* Connector Sidebar */}
-      <ConnectorSidebar isOpen={sidebarOpen} onClose={handleCloseSidebar} />
-
-      {/* Main Content - Adjust for collapsible sidebar */}
-      <div className="flex-1 flex flex-col ml-0 lg:ml-16 transition-all duration-300 ease-in-out">
-        {/* Sticky Header with sidebar toggle */}
-        <div className="sticky top-0 z-40 shadow-sm" style={{ background: 'var(--surface-color)' }}>
-          <div className="container mx-auto px-4">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={handleOpenSidebar}
-                className="lg:hidden p-2 rounded-md transition-colors"
-                style={{ color: 'var(--text-primary)' }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-surface)'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                title="Open Data Sources"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </button>
-              <div className="hidden lg:block">
-                <div className="flex items-center gap-2 px-2 py-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 1.79 4 4 4h8c2.21 0 4-1.79 4-4V7c0-2.21-1.79-4-4-4H8c-2.21 0-4 1.79-4 4z" />
-                  </svg>
-                  <span className="text-xs">Hover left sidebar to expand</span>
-                </div>
-              </div>
-              <div className="flex-1 flex items-center justify-between">
-                <Header />
-                <div className="ml-3">
-                  <CompactSystemStatus health={health} />
-                </div>
-              </div>
-            </div>
+    <SidebarProvider>
+      <AppSidebar />
+      <SidebarInset>
+        {/* Sticky Header */}
+        <header className="flex h-14 shrink-0 items-center gap-4 border-b px-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <SidebarTrigger className="-ml-1" />
+          <div className="flex-1 flex items-center justify-between">
+            {/* Logo & Brand on the left */}
+            <Header />
+            {/* All other actions on the right */}
+            <HeaderActions health={health} />
           </div>
-        </div>
+        </header>
 
         {/* Main Content */}
-        {children}
-      </div>
-    </div>
+        <main className="flex-1 overflow-auto p-4">
+          {children}
+        </main>
+      </SidebarInset>
+    </SidebarProvider>
   )
 }

@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from '@/contexts/AuthContext'
+import { ThemeProvider } from '@/contexts/ThemeContext'
 import SuperTokensProvider from '@/components/SuperTokensProvider'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -17,13 +18,15 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <SuperTokensProvider>
           <AuthProvider>
-            <div className="min-h-screen" style={{ background: 'var(--primary-background)', color: 'var(--text-primary)' }}>
-              {children}
-            </div>
+            <ThemeProvider>
+              <div className="min-h-screen" style={{ background: 'var(--primary-background)', color: 'var(--text-primary)' }}>
+                {children}
+              </div>
+            </ThemeProvider>
           </AuthProvider>
         </SuperTokensProvider>
       </body>
