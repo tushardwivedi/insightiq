@@ -70,7 +70,7 @@ export default function DocsPage() {
           <div className="code-block mb-6">
             <pre className="p-4 rounded-lg overflow-x-auto" style={{ background: 'var(--hover-surface)' }}>
               <code style={{ color: 'var(--text-primary)' }}>{`# Clone the repository
-git clone https://github.com/yourusername/insightiq.git
+git clone https://github.com/tushardwivedi/insightiq.git
 cd insightiq
 
 # Start all services
