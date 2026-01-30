@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { apiClient } from "@/lib/api";
 import { motion } from "framer-motion";
@@ -11,19 +10,13 @@ import { useRouter } from "next/navigation";
 import {
   History,
   Search,
-  Trash2,
   Clock,
   Database,
   Sparkles,
   ChevronLeft,
   ChevronRight,
-  FileText,
-  Play,
-  MoreVertical,
-  Copy,
-  Check,
-  Calendar
 } from "lucide-react";
+import { QueryHistoryItem } from "@/components/history/QueryHistoryItem";
 
 export default function HistoryPage() {
   const router = useRouter();
@@ -86,21 +79,6 @@ export default function HistoryPage() {
     item.query?.toLowerCase().includes(search.toLowerCase()) ||
     item.insights?.toLowerCase().includes(search.toLowerCase())
   );
-
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  const getQueryType = (query: string) => {
-    if (query?.startsWith("SELECT")) return "SQL";
-    if (query?.length > 0) return "Text";
-    return "Unknown";
-  };
 
   return (
     <div className="flex-1 overflow-auto">
@@ -210,70 +188,15 @@ export default function HistoryPage() {
             ) : (
               <div className="space-y-3">
                 {filteredHistory.map((item, index) => (
-                  <motion.div
+                  <QueryHistoryItem
                     key={item.id || index}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.03 }}
-                    className="p-4 rounded-lg border hover:bg-muted/30 transition-colors"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Badge variant="secondary" className="flex items-center gap-1">
-                            {getQueryType(item.query)}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Calendar className="w-3 h-3" />
-                            {formatDate(item.created_at || item.timestamp)}
-                          </span>
-                          {item.process_time && (
-                            <span className="text-xs text-muted-foreground">
-                              {item.process_time}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-sm font-mono bg-muted/50 p-2 rounded truncate">
-                          {item.query || item.sql}
-                        </p>
-                        {item.insights && (
-                          <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
-                            {item.insights}
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleRerun(item.query || item.sql)}
-                          title="Rerun query"
-                        >
-                          <Play className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleCopy(item.query || item.sql, item.id)}
-                          title="Copy query"
-                        >
-                          {copied === item.id ? (
-                            <Check className="w-4 h-4 text-green-500" />
-                          ) : (
-                            <Copy className="w-4 h-4" />
-                          )}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDelete(item.id)}
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </div>
-                  </motion.div>
+                    item={item}
+                    index={index}
+                    copied={copied}
+                    onRerun={handleRerun}
+                    onCopy={handleCopy}
+                    onDelete={handleDelete}
+                  />
                 ))}
               </div>
             )}

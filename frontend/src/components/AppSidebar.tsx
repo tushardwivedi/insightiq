@@ -1,56 +1,36 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { DataConnector, ConnectorTestResult } from "@/types";
+import { DataConnector } from "@/types";
 import { apiClient } from "@/lib/api";
 import ConnectorCard from "./ConnectorCard";
 import SupersetConnectorForm from "./connectors/SupersetConnectorForm";
 import FileUploadModal from "./FileUploadModal";
 import UploadedFilesList from "./UploadedFilesList";
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  Database,
-  Plus,
-  FileUp,
-  BarChart3,
-  Settings,
-  Database as DatabaseIcon,
-  FileText,
-  ChevronLeft,
-  Upload,
-  LayoutDashboard,
-  Sparkles,
-  Zap,
-  FolderOpen,
-  History,
-} from "lucide-react";
+import { Upload } from "lucide-react";
+import { SidebarBrand } from "@/components/sidebar/SidebarBrand";
+import { SidebarNavigation } from "@/components/sidebar/SidebarNavigation";
+import { ConnectorTypeSelector } from "@/components/sidebar/ConnectorTypeSelector";
+import { CollapsedSidebar } from "@/components/sidebar/CollapsedSidebar";
+import { DataSourcesSection } from "@/components/sidebar/DataSourcesSection";
 
 export function AppSidebar() {
-  const { state } = useSidebar()
-  const isCollapsed = state === 'collapsed'
-  const pathname = usePathname()
+  const { state } = useSidebar();
+  const isCollapsed = state === "collapsed";
+  const pathname = usePathname();
 
   const [connectors, setConnectors] = useState<DataConnector[]>([]);
   const [loading, setLoading] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [selectedConnectorType, setSelectedConnectorType] =
-    useState<string>("");
+  const [selectedConnectorType, setSelectedConnectorType] = useState<string>("");
   const [showFileUploadModal, setShowFileUploadModal] = useState(false);
   const [fileListRefreshTrigger, setFileListRefreshTrigger] = useState(0);
   const [uploadedFilesCount, setUploadedFilesCount] = useState(0);
@@ -77,14 +57,11 @@ export function AppSidebar() {
     setSelectedConnectorType("");
   }, []);
 
-  const handleConnectorUpdated = useCallback(
-    (updatedConnector: DataConnector) => {
-      setConnectors((prev) =>
-        prev.map((c) => (c.id === updatedConnector.id ? updatedConnector : c))
-      );
-    },
-    []
-  );
+  const handleConnectorUpdated = useCallback((updatedConnector: DataConnector) => {
+    setConnectors((prev) =>
+      prev.map((c) => (c.id === updatedConnector.id ? updatedConnector : c))
+    );
+  }, []);
 
   const handleConnectorDeleted = useCallback((connectorId: string) => {
     setConnectors((prev) => prev.filter((c) => c.id !== connectorId));
@@ -128,172 +105,25 @@ export function AppSidebar() {
     }
   }, []);
 
-  const connectorTypes = [
-    {
-      type: "file_upload",
-      name: "File Upload",
-      description: "Upload CSV or Excel files to query with SQL",
-      icon: "📁",
-    },
-    {
-      type: "superset",
-      name: "Apache Superset",
-      description: "Connect to Apache Superset for analytics dashboards",
-      icon: "📊",
-    },
-    {
-      type: "postgres",
-      name: "PostgreSQL",
-      description: "Connect to PostgreSQL database",
-      icon: "🐘",
-    },
-    {
-      type: "mysql",
-      name: "MySQL",
-      description: "Connect to MySQL database",
-      icon: "🐬",
-    },
-    {
-      type: "api",
-      name: "REST API",
-      description: "Connect to external REST API",
-      icon: "🌐",
-    },
-  ];
-
-  const mainNavItems = [
-    { href: "/app", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/editor", label: "Query Editor", icon: Zap },
-  ];
-
-  const secondaryNavItems = [
-    { href: "/history", label: "Query History", icon: History },
-    { href: "/connectors", label: "Data Sources", icon: Database },
-    { href: "/files", label: "Uploaded Files", icon: FolderOpen },
-    { href: "/queries", label: "Saved Queries", icon: FileText },
-    { href: "/analytics", label: "Analytics", icon: BarChart3 },
-    { href: "/reports", label: "Reports", icon: FileText },
-    { href: "/team", label: "Team", icon: Settings },
-    { href: "/settings", label: "Settings", icon: Settings },
-  ];
-
   const renderContent = () => {
     if (isCollapsed) {
       return (
-        <div className="flex flex-col items-center space-y-4 py-4">
-          {mainNavItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
-                pathname === item.href
-                  ? "bg-primary text-primary-foreground"
-                  : "hover:bg-muted text-muted-foreground"
-              }`}
-              title={item.label}
-            >
-              <item.icon className="w-4 h-4" />
-            </Link>
-          ))}
-
-          <div className="w-6 h-px bg-border my-2" />
-
-          <button
-            onClick={() => setShowAddForm(true)}
-            className="w-8 h-8 rounded-lg transition-colors flex items-center justify-center"
-            style={{ background: 'var(--accent-color)', color: 'var(--primary-background)' }}
-            title="Add Data Source"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
-
-          {connectors.slice(0, 3).map((connector) => (
-            <div
-              key={connector.id}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-medium"
-              style={{
-                backgroundColor: connector.status === 'connected' ? '#10b981' :
-                                connector.status === 'testing' ? '#f59e0b' : '#ef4444',
-                color: 'white'
-              }}
-              title={`${connector.name} - ${connector.status}`}
-            >
-              {connector.name.charAt(0).toUpperCase()}
-            </div>
-          ))}
-
-          {connectors.length > 3 && (
-            <div className="text-xs text-center" style={{ color: 'var(--text-secondary)' }}>
-              +{connectors.length - 3}
-            </div>
-          )}
-        </div>
-      )
+        <CollapsedSidebar
+          pathname={pathname}
+          connectors={connectors}
+          onAddConnector={() => setShowAddForm(true)}
+        />
+      );
     }
 
     if (showAddForm) {
       return (
         <>
-          <button
-            onClick={handleBackToConnectors}
-            className="mb-4 flex items-center gap-2 transition-colors"
-            style={{ color: "var(--text-secondary)" }}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.color = "var(--text-primary)")
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.color = "var(--text-secondary)")
-            }
-          >
-            <ChevronLeft className="w-4 h-4" />
-            Back to connectors
-          </button>
-
           {!selectedConnectorType ? (
-            <>
-              <h3
-                className="text-md font-medium mb-4"
-                style={{ color: "var(--text-primary)" }}
-              >
-                Choose Connector Type
-              </h3>
-              <div className="space-y-3">
-                {connectorTypes.map((type) => (
-                  <button
-                    key={type.type}
-                    onClick={() => setSelectedConnectorType(type.type)}
-                    className="w-full p-4 text-left border rounded-lg transition-colors"
-                    style={{ borderColor: "var(--border-color)" }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = "var(--accent-color)";
-                      e.currentTarget.style.background = "var(--hover-surface)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = "var(--border-color)";
-                      e.currentTarget.style.background = "transparent";
-                    }}
-                  >
-                    <div className="flex items-start gap-3">
-                      <span className="text-2xl">{type.icon}</span>
-                      <div className="flex-1">
-                        <h4
-                          className="font-medium"
-                          style={{ color: "var(--text-primary)" }}
-                        >
-                          {type.name}
-                        </h4>
-                        <p
-                          className="text-sm mt-1"
-                          style={{ color: "var(--text-secondary)" }}
-                        >
-                          {type.description}
-                        </p>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </>
+            <ConnectorTypeSelector
+              onSelect={setSelectedConnectorType}
+              onBack={handleBackToConnectors}
+            />
           ) : selectedConnectorType === "superset" ? (
             <SupersetConnectorForm
               onCancel={handleCancelForm}
@@ -332,8 +162,7 @@ export function AppSidebar() {
                 onClick={() => setShowFileUploadModal(true)}
                 className="w-full px-4 py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 mb-4"
                 style={{
-                  background:
-                    "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                  background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
                   color: "white",
                 }}
                 onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.9")}
@@ -372,104 +201,18 @@ export function AppSidebar() {
 
     return (
       <>
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
-            Navigation
-          </SidebarGroupLabel>
-          <SidebarMenu>
-            {mainNavItems.map((item) => (
-              <SidebarMenuItem key={item.href}>
-                <SidebarMenuButton asChild isActive={pathname === item.href}>
-                  <Link href={item.href} className="flex items-center gap-3">
-                    <item.icon className="w-5 h-5" />
-                    <span>{item.label}</span>
-                    {item.href === '/editor' && (
-                      <Badge variant="secondary" className="ml-auto text-xs">
-                        <Sparkles className="w-3 h-3 mr-1" />
-                        AI
-                      </Badge>
-                    )}
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
-          </SidebarMenu>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-xs uppercase tracking-wider text-muted-foreground mb-2 mt-4">
-            Quick Access
-          </SidebarGroupLabel>
-          <SidebarMenu>
-            {secondaryNavItems.map((item) => (
-              <SidebarMenuItem key={item.href}>
-                <SidebarMenuButton asChild isActive={pathname === item.href}>
-                  <Link href={item.href} className="flex items-center gap-3">
-                    <item.icon className="w-5 h-5" />
-                    <span>{item.label}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
-          </SidebarMenu>
-        </SidebarGroup>
+        <SidebarNavigation pathname={pathname} />
 
         <div className="w-full h-px bg-border my-4" />
 
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
-            Data Sources
-          </SidebarGroupLabel>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                onClick={() => setShowAddForm(true)}
-                className="w-full"
-              >
-                <Plus className="w-5 h-5" />
-                <span>Add Data Source</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarGroup>
-
-        {loading ? (
-          <div className="flex items-center justify-center py-8">
-            <div
-              className="animate-spin rounded-full h-8 w-8 border-b-2"
-              style={{ borderColor: "var(--accent-color)" }}
-            ></div>
-          </div>
-        ) : connectors.length === 0 ? (
-          <div
-            className="text-center py-8"
-            style={{ color: "var(--text-secondary)" }}
-          >
-            <Database
-              className="w-12 h-12 mx-auto mb-4"
-              style={{ color: "var(--border-color)" }}
-            />
-            <p className="text-sm">No data sources connected</p>
-            <p
-              className="text-xs mt-1"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              Add your first connector to get started
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3 mt-3">
-            {connectors.map((connector) => (
-              <ConnectorCard
-                key={connector.id}
-                connector={connector}
-                onTest={() => handleTestConnection(connector)}
-                onEdit={(connector) => handleConnectorUpdated(connector)}
-                onDelete={() => handleConnectorDeleted(connector.id)}
-              />
-            ))}
-          </div>
-        )}
+        <DataSourcesSection
+          connectors={connectors}
+          loading={loading}
+          onAddConnector={() => setShowAddForm(true)}
+          onTestConnector={handleTestConnection}
+          onEditConnector={handleConnectorUpdated}
+          onDeleteConnector={handleConnectorDeleted}
+        />
       </>
     );
   };
@@ -489,26 +232,7 @@ export function AppSidebar() {
           className="flex items-center justify-center p-4 border-b"
           style={{ borderColor: "var(--border-color)" }}
         >
-          {isCollapsed ? (
-            <Database className="w-6 h-6" style={{ color: 'var(--accent-color)' }} />
-          ) : (
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-                <DatabaseIcon className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h2
-                  className="text-base font-semibold"
-                  style={{ color: "var(--text-primary)" }}
-                >
-                  InsightIQ
-                </h2>
-                <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                  Analytics Platform
-                </p>
-              </div>
-            </div>
-          )}
+          <SidebarBrand isCollapsed={isCollapsed} />
         </SidebarHeader>
 
         <SidebarContent className="flex-1 overflow-y-auto p-4">
@@ -523,7 +247,9 @@ export function AppSidebar() {
             className="text-xs text-center"
             style={{ color: "var(--text-secondary)" }}
           >
-            {isCollapsed ? connectors.length : `${connectors.length} connector${connectors.length !== 1 ? "s" : ""} configured`}
+            {isCollapsed
+              ? connectors.length
+              : `${connectors.length} connector${connectors.length !== 1 ? "s" : ""} configured`}
           </div>
         </SidebarFooter>
       </Sidebar>
