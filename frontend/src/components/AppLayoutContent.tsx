@@ -60,10 +60,10 @@ export default function AppLayoutContent({ children }: AppLayoutContentProps) {
   }
 
   return (
-    <SidebarProvider>
+    <SidebarProvider className="h-svh !min-h-0">
       <AppSidebar />
-      <SidebarInset>
-        {/* Sticky Header */}
+      <SidebarInset className="h-full overflow-hidden">
+        {/* Fixed Header */}
         <header className="flex h-14 shrink-0 items-center gap-4 border-b px-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <SidebarTrigger className="-ml-1" />
           <div className="flex-1 flex items-center justify-between">

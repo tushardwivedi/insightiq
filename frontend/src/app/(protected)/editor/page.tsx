@@ -73,40 +73,40 @@ export default function EditorPage() {
 
   return (
     <div className="flex flex-col h-full bg-background">
+      {/* Messages area */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-3xl mx-auto space-y-0">
-          <AnimatePresence mode="wait">
-            {messages.length === 0 && (
-              <EditorEmptyState
-                suggestedQueries={suggestedQueries}
-                onSelectQuery={setInput}
-                onOpenSqlEditor={() => setShowSqlEditor(true)}
+        <AnimatePresence mode="wait">
+          {messages.length === 0 && (
+            <EditorEmptyState
+              suggestedQueries={suggestedQueries}
+              onSelectQuery={setInput}
+              onOpenSqlEditor={() => setShowSqlEditor(true)}
+            />
+          )}
+        </AnimatePresence>
+
+        <div>
+          <AnimatePresence>
+            {messages.map((message, index) => (
+              <ChatMessage
+                key={message.id}
+                message={message}
+                index={index}
+                copied={copied}
+                onCopy={copyToClipboard}
               />
-            )}
+            ))}
           </AnimatePresence>
 
-          <div className="space-y-0">
-            <AnimatePresence>
-              {messages.map((message, index) => (
-                <ChatMessage
-                  key={message.id}
-                  message={message}
-                  index={index}
-                  copied={copied}
-                  onCopy={copyToClipboard}
-                />
-              ))}
-            </AnimatePresence>
+          {(isSubmitting || audioProcessing) && (
+            <TypingIndicator isAudioProcessing={audioProcessing} />
+          )}
 
-            {(isSubmitting || audioProcessing) && (
-              <TypingIndicator isAudioProcessing={audioProcessing} />
-            )}
-
-            <div ref={messagesEndRef} className="h-32" />
-          </div>
+          <div ref={messagesEndRef} className="h-4" />
         </div>
       </div>
 
+      {/* Input area */}
       <ChatInput
         input={input}
         onInputChange={setInput}
@@ -124,6 +124,7 @@ export default function EditorPage() {
         hasMessages={messages.length > 0}
       />
 
+      {/* SQL Editor panel */}
       <SqlEditorSheet
         open={showSqlEditor}
         onOpenChange={setShowSqlEditor}
