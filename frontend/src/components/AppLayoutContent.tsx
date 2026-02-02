@@ -75,7 +75,7 @@ export default function AppLayoutContent({ children }: AppLayoutContentProps) {
         </header>
 
         {/* Main Content */}
-        <main className="flex-1 overflow-hidden">
+        <main className="flex-1 overflow-hidden flex flex-col">
           {children}
         </main>
       </SidebarInset>
