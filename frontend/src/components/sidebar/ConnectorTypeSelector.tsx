@@ -28,18 +28,6 @@ const connectorTypes: ConnectorType[] = [
     description: "Connect to PostgreSQL database",
     icon: "\u{1F418}",
   },
-  {
-    type: "mysql",
-    name: "MySQL",
-    description: "Connect to MySQL database",
-    icon: "\u{1F42C}",
-  },
-  {
-    type: "api",
-    name: "REST API",
-    description: "Connect to external REST API",
-    icon: "\u{1F310}",
-  },
 ];
 
 interface ConnectorTypeSelectorProps {

@@ -167,12 +167,6 @@ func (s *ConnectorService) validateConnectorConfig(connectorType models.Connecto
 		return s.validateSupersetConfig(config)
 	case models.ConnectorTypePostgres:
 		return s.validatePostgresConfig(config)
-	case models.ConnectorTypeMySQL:
-		return s.validateMySQLConfig(config)
-	case models.ConnectorTypeMongoDB:
-		return s.validateMongoDBConfig(config)
-	case models.ConnectorTypeAPI:
-		return s.validateAPIConfig(config)
 	case models.ConnectorTypeFileUpload:
 		return s.validateFileUploadConfig(config)
 	default:
@@ -214,36 +208,6 @@ func (s *ConnectorService) validatePostgresConfig(config models.ConnectorConfig)
 	return nil
 }
 
-// validateMySQLConfig validates MySQL connector configuration
-func (s *ConnectorService) validateMySQLConfig(config models.ConnectorConfig) error {
-	url, ok := config["url"].(string)
-	if !ok || url == "" {
-		return fmt.Errorf("url is required for MySQL connector")
-	}
-
-	return nil
-}
-
-// validateMongoDBConfig validates MongoDB connector configuration
-func (s *ConnectorService) validateMongoDBConfig(config models.ConnectorConfig) error {
-	url, ok := config["url"].(string)
-	if !ok || url == "" {
-		return fmt.Errorf("url is required for MongoDB connector")
-	}
-
-	return nil
-}
-
-// validateAPIConfig validates API connector configuration
-func (s *ConnectorService) validateAPIConfig(config models.ConnectorConfig) error {
-	url, ok := config["url"].(string)
-	if !ok || url == "" {
-		return fmt.Errorf("url is required for API connector")
-	}
-
-	return nil
-}
-
 // validateFileUploadConfig validates file upload connector configuration
 func (s *ConnectorService) validateFileUploadConfig(config models.ConnectorConfig) error {
 	fileID, ok := config["file_id"].(string)
@@ -263,12 +227,6 @@ func (s *ConnectorService) testConnectorConfig(ctx context.Context, connectorTyp
 		return s.testSupersetConnection(ctx, config, start)
 	case models.ConnectorTypePostgres:
 		return s.testPostgresConnection(ctx, config, start)
-	case models.ConnectorTypeMySQL:
-		return s.testMySQLConnection(ctx, config, start)
-	case models.ConnectorTypeMongoDB:
-		return s.testMongoDBConnection(ctx, config, start)
-	case models.ConnectorTypeAPI:
-		return s.testAPIConnection(ctx, config, start)
 	case models.ConnectorTypeFileUpload:
 		return s.testFileUploadConnection(ctx, config, start)
 	default:
@@ -349,45 +307,6 @@ func (s *ConnectorService) testPostgresConnection(ctx context.Context, config mo
 	return &models.ConnectorTestResult{
 		Success:      true,
 		Message:      "Successfully connected to PostgreSQL",
-		ResponseTime: &responseTime,
-	}
-}
-
-// testMySQLConnection tests connection to MySQL
-func (s *ConnectorService) testMySQLConnection(ctx context.Context, config models.ConnectorConfig, start time.Time) *models.ConnectorTestResult {
-	url, _ := config["url"].(string)
-	responseTime := time.Since(start).Milliseconds()
-
-	s.logger.Info("MySQL connection test not fully implemented", "url", url)
-	return &models.ConnectorTestResult{
-		Success:      true,
-		Message:      "MySQL connector configuration is valid",
-		ResponseTime: &responseTime,
-	}
-}
-
-// testMongoDBConnection tests connection to MongoDB
-func (s *ConnectorService) testMongoDBConnection(ctx context.Context, config models.ConnectorConfig, start time.Time) *models.ConnectorTestResult {
-	url, _ := config["url"].(string)
-	responseTime := time.Since(start).Milliseconds()
-
-	s.logger.Info("MongoDB connection test not fully implemented", "url", url)
-	return &models.ConnectorTestResult{
-		Success:      true,
-		Message:      "MongoDB connector configuration is valid",
-		ResponseTime: &responseTime,
-	}
-}
-
-// testAPIConnection tests connection to an API endpoint
-func (s *ConnectorService) testAPIConnection(ctx context.Context, config models.ConnectorConfig, start time.Time) *models.ConnectorTestResult {
-	url, _ := config["url"].(string)
-	responseTime := time.Since(start).Milliseconds()
-
-	s.logger.Info("API connection test not fully implemented", "url", url)
-	return &models.ConnectorTestResult{
-		Success:      true,
-		Message:      "API connector configuration is valid",
 		ResponseTime: &responseTime,
 	}
 }

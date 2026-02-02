@@ -49,12 +49,8 @@ export default function ConnectorCard({ connector, onTest, onEdit, onDelete }: C
         return '📊'
       case 'postgres':
         return '🐘'
-      case 'mysql':
-        return '🐬'
-      case 'mongodb':
-        return '🍃'
-      case 'api':
-        return '🌐'
+      case 'file_upload':
+        return '📁'
       default:
         return '🔗'
     }

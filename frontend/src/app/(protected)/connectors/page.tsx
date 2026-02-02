@@ -96,12 +96,10 @@ export default function ConnectorsPage() {
   const getConnectorIcon = (type: string) => {
     const icons: Record<string, string> = {
       postgres: "🐘",
-      mysql: "🐬",
       superset: "📊",
-      mongodb: "🍃",
-      api: "🌐",
+      file_upload: "📁",
     };
-    return icons[type] || "📁";
+    return icons[type] || "🔗";
   };
 
   const formatDate = (date?: string) => {

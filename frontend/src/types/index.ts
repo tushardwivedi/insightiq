@@ -45,7 +45,7 @@ export interface ApiResponse<T> {
 export interface DataConnector {
   id: string;
   name: string;
-  type: 'superset' | 'postgres' | 'mysql' | 'mongodb' | 'api';
+  type: 'superset' | 'postgres' | 'file_upload';
   status: 'connected' | 'disconnected' | 'error' | 'testing';
   config: ConnectorConfig;
   created_at: string;

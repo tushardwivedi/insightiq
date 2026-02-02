@@ -34,12 +34,10 @@ func (s *ScannerService) ScanDataSource(ctx context.Context, connectorID string)
 	// Scan tables based on connector type
 	var tables []TableContext
 	switch connector.Type {
-	case "postgres", "mysql":
+	case "postgres":
 		tables, err = s.scanDatabaseTables(ctx, connector)
 	case "superset":
 		tables, err = s.scanSupersetTables(ctx, connector)
-	case "api":
-		tables, err = s.scanAPIEndpoints(ctx, connector)
 	default:
 		return nil, fmt.Errorf("unsupported connector type: %s", connector.Type)
 	}
@@ -224,37 +222,6 @@ func (s *ScannerService) scanSupersetTables(ctx context.Context, connector *Conn
 	// This would connect to Superset API and extract available datasets
 	// For now, return representative data from typical Superset setup
 	return s.scanDatabaseTables(ctx, connector) // Fallback to database scanning
-}
-
-// scanAPIEndpoints scans API endpoints to understand data structure
-func (s *ScannerService) scanAPIEndpoints(ctx context.Context, connector *ConnectorInfo) ([]TableContext, error) {
-	// This would call API endpoints and analyze response structures
-	// For now, return basic API table representation
-	tables := []TableContext{
-		{
-			TableName:   "api_response",
-			Description: "API endpoint response data",
-			Columns: []ColumnInfo{
-				{
-					Name:         "id",
-					Type:         "STRING",
-					DataType:     "string",
-					IsID:         true,
-					SampleValues: []string{"api_001", "api_002"},
-				},
-				{
-					Name:         "timestamp",
-					Type:         "TIMESTAMP",
-					DataType:     "timestamp",
-					IsDatetime:   true,
-					SampleValues: []string{"2024-01-15T10:30:00Z"},
-				},
-			},
-			BusinessTags: []string{"api", "external_data"},
-		},
-	}
-
-	return tables, nil
 }
 
 // analyzeTableRelationships identifies relationships between tables
