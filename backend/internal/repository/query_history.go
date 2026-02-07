@@ -34,6 +34,9 @@ func (r *QueryHistoryRepository) CreateTables(ctx context.Context) error {
 			execution_time_ms BIGINT DEFAULT 0,
 			status VARCHAR(50) NOT NULL DEFAULT 'success',
 			error_message TEXT,
+			ip_address VARCHAR(45),
+			user_agent TEXT,
+			data_redacted BOOLEAN DEFAULT false,
 			created_at TIMESTAMP NOT NULL DEFAULT NOW()
 		);
 
@@ -41,6 +44,7 @@ func (r *QueryHistoryRepository) CreateTables(ctx context.Context) error {
 		CREATE INDEX IF NOT EXISTS idx_query_history_created_at ON query_history(created_at DESC);
 		CREATE INDEX IF NOT EXISTS idx_query_history_status ON query_history(status);
 		CREATE INDEX IF NOT EXISTS idx_query_history_query_type ON query_history(query_type);
+		CREATE INDEX IF NOT EXISTS idx_query_history_ip_address ON query_history(ip_address);
 	`
 
 	_, err := r.db.ExecContext(ctx, query)
@@ -65,13 +69,15 @@ func (r *QueryHistoryRepository) Create(ctx context.Context, qh *models.QueryHis
 	query := `
 		INSERT INTO query_history (
 			id, user_id, connector_id, connector_name, query_type, query_text,
-			generated_sql, result_preview, row_count, execution_time_ms, status, error_message, created_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+			generated_sql, result_preview, row_count, execution_time_ms, status, error_message,
+			ip_address, user_agent, data_redacted, created_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 	`
 
 	_, err = r.db.ExecContext(ctx, query,
 		qh.ID, qh.UserID, qh.ConnectorID, qh.ConnectorName, qh.QueryType, qh.QueryText,
-		qh.GeneratedSQL, resultPreviewJSON, qh.RowCount, qh.ExecutionTime, qh.Status, qh.ErrorMessage, qh.CreatedAt,
+		qh.GeneratedSQL, resultPreviewJSON, qh.RowCount, qh.ExecutionTime, qh.Status, qh.ErrorMessage,
+		qh.IPAddress, qh.UserAgent, qh.DataRedacted, qh.CreatedAt,
 	)
 
 	return err
@@ -100,7 +106,8 @@ func (r *QueryHistoryRepository) GetByUserID(ctx context.Context, userID string,
 func (r *QueryHistoryRepository) GetByID(ctx context.Context, id string, userID string) (*models.QueryHistory, error) {
 	query := `
 		SELECT id, user_id, connector_id, connector_name, query_type, query_text,
-		       generated_sql, result_preview, row_count, execution_time_ms, status, error_message, created_at
+		       generated_sql, result_preview, row_count, execution_time_ms, status, error_message,
+		       ip_address, user_agent, data_redacted, created_at
 		FROM query_history
 		WHERE id = $1 AND user_id = $2
 	`
@@ -110,7 +117,8 @@ func (r *QueryHistoryRepository) GetByID(ctx context.Context, id string, userID 
 
 	err := r.db.QueryRowContext(ctx, query, id, userID).Scan(
 		&qh.ID, &qh.UserID, &qh.ConnectorID, &qh.ConnectorName, &qh.QueryType, &qh.QueryText,
-		&qh.GeneratedSQL, &resultPreviewJSON, &qh.RowCount, &qh.ExecutionTime, &qh.Status, &qh.ErrorMessage, &qh.CreatedAt,
+		&qh.GeneratedSQL, &resultPreviewJSON, &qh.RowCount, &qh.ExecutionTime, &qh.Status, &qh.ErrorMessage,
+		&qh.IPAddress, &qh.UserAgent, &qh.DataRedacted, &qh.CreatedAt,
 	)
 
 	if err != nil {

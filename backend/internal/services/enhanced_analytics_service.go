@@ -10,6 +10,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"insightiq/backend/internal/connectors"
+	"insightiq/backend/internal/domain"
 	"insightiq/backend/internal/models"
 )
 
@@ -20,11 +21,17 @@ type EnhancedAnalyticsService struct {
 	ragService         *RAGQueryService
 	orchestrator       *DataSourceOrchestrator
 	validationService  *DataValidationService
+	eventPublisher     EventPublisher
 	llmConn            *connectors.OllamaConnector
 	fallbackPostgres   *connectors.PostgresConnector
 	fallbackSuperset   *connectors.SuperSetConnector
 	db                 *sqlx.DB
 	logger             *slog.Logger
+}
+
+// EventPublisher is an interface for publishing domain events
+type EventPublisher interface {
+	Publish(ctx context.Context, eventType string, event interface{}) error
 }
 
 // EnhancedAnalyticsRequest represents a request for analytics data
@@ -58,6 +65,7 @@ func NewEnhancedAnalyticsService(
 	fallbackPostgres *connectors.PostgresConnector,
 	fallbackSuperset *connectors.SuperSetConnector,
 	ragService *RAGQueryService,
+	eventPublisher EventPublisher,
 	logger *slog.Logger,
 ) *EnhancedAnalyticsService {
 	eas := &EnhancedAnalyticsService{
@@ -66,6 +74,7 @@ func NewEnhancedAnalyticsService(
 		fallbackPostgres: fallbackPostgres,
 		fallbackSuperset: fallbackSuperset,
 		ragService:       ragService,
+		eventPublisher:   eventPublisher,
 		db:               nil, // Will be set if needed for file upload queries
 		logger:           logger.With("service", "enhanced_analytics"),
 	}
@@ -211,7 +220,8 @@ func (eas *EnhancedAnalyticsService) ProcessQuery(ctx context.Context, req *Enha
 	eas.logger.Info("LLM analysis generated successfully", "service", "enhanced_analytics", "analysis_length", len(analysis))
 
 	eas.logger.Info("About to return EnhancedAnalyticsResponse", "service", "enhanced_analytics", "analysis", analysis, "data_count", len(combinedData))
-	return &EnhancedAnalyticsResponse{
+
+	response := &EnhancedAnalyticsResponse{
 		Query:          req.Query,
 		Data:           combinedData,
 		Sources:        allData,
@@ -225,7 +235,12 @@ func (eas *EnhancedAnalyticsService) ProcessQuery(ctx context.Context, req *Enha
 		TaskGraph:      &plannerResponse.TaskGraph,
 		PlanningTime:   planningTime.String(),
 		DataValidation: validationResult,
-	}, nil
+	}
+
+	// Publish query execution event for history tracking
+	eas.publishQueryExecutionEvent(ctx, req, response, time.Since(start).Milliseconds())
+
+	return response, nil
 }
 
 // ExecuteCustomSQL is disabled to prevent direct SQL execution on internal databases
@@ -1022,4 +1037,66 @@ func (eas *EnhancedAnalyticsService) convertRAGResultsToData(ragResults []RAGRes
 
 	eas.logger.Debug("Converted RAG results to data format", "count", len(data))
 	return data
+}
+
+// publishQueryExecutionEvent publishes a query execution event for history tracking
+func (eas *EnhancedAnalyticsService) publishQueryExecutionEvent(
+	ctx context.Context,
+	req *EnhancedAnalyticsRequest,
+	response *EnhancedAnalyticsResponse,
+	executionTimeMs int64,
+) {
+	// Skip if event publisher is not configured
+	if eas.eventPublisher == nil {
+		eas.logger.Debug("Event publisher not configured, skipping event publication")
+		return
+	}
+
+	// Extract user ID from context
+	userID, _ := ctx.Value("user_id").(string)
+	if userID == "" {
+		eas.logger.Warn("User ID not found in context, cannot publish query event")
+		return
+	}
+
+	// Extract IP address and User-Agent from context
+	ipAddress, _ := ctx.Value("ip_address").(string)
+	userAgent, _ := ctx.Value("user_agent").(string)
+
+	// Get connector information from data sources
+	var connectorID, connectorName string
+	if len(response.DataSources) > 0 {
+		connectorName = response.DataSources[0] // Use first data source
+	}
+
+	// Create domain event
+	event := &domain.QueryExecutionEvent{
+		EventID:       fmt.Sprintf("evt_%d_%s", time.Now().Unix(), userID[:8]),
+		UserID:        userID,
+		Timestamp:     time.Now(),
+		QueryType:     "text", // Default to text query
+		QueryText:     req.Query,
+		GeneratedSQL:  req.SQL,
+		ConnectorID:   connectorID,
+		ConnectorName: connectorName,
+		RowCount:      len(response.Data),
+		ExecutionTime: executionTimeMs,
+		Status:        response.Status,
+		ErrorMessage:  "",
+		IPAddress:     ipAddress,
+		UserAgent:     userAgent,
+		ResultPreview: response.Sources,
+	}
+
+	// Publish event (non-blocking)
+	if err := eas.eventPublisher.Publish(ctx, "query.executed", event); err != nil {
+		eas.logger.Error("Failed to publish query execution event",
+			"error", err,
+			"user_id", userID)
+		// Don't fail the request if event publishing fails
+	} else {
+		eas.logger.Info("Query execution event published successfully",
+			"user_id", userID,
+			"query", req.Query)
+	}
 }

@@ -168,6 +168,10 @@ func (s *Server) authMiddleware(authService *services.AuthService) func(http.Han
 			ctx = context.WithValue(ctx, "user_email", claims.Email)
 			ctx = context.WithValue(ctx, "user_role", claims.Role)
 
+			// Add IP address and User-Agent for audit trail
+			ctx = context.WithValue(ctx, "ip_address", getClientIP(r))
+			ctx = context.WithValue(ctx, "user_agent", r.UserAgent())
+
 			// Call next handler with updated context
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
@@ -208,6 +212,10 @@ func (s *Server) optionalAuthMiddleware(authService *services.AuthService) func(
 			ctx = context.WithValue(ctx, "user_email", claims.Email)
 			ctx = context.WithValue(ctx, "user_role", claims.Role)
 
+			// Add IP address and User-Agent for audit trail
+			ctx = context.WithValue(ctx, "ip_address", getClientIP(r))
+			ctx = context.WithValue(ctx, "user_agent", r.UserAgent())
+
 			// Call next handler with updated context
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
@@ -241,4 +249,32 @@ func (s *Server) roleMiddleware(allowedRoles ...string) func(http.Handler) http.
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// getClientIP extracts the real client IP address from the request
+// It checks X-Forwarded-For and X-Real-IP headers first (for proxies/load balancers)
+// then falls back to RemoteAddr
+func getClientIP(r *http.Request) string {
+	// Check X-Forwarded-For header (standard for proxies)
+	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		// X-Forwarded-For can contain multiple IPs (client, proxy1, proxy2)
+		// The first one is the original client
+		if idx := strings.Index(forwarded, ","); idx != -1 {
+			return strings.TrimSpace(forwarded[:idx])
+		}
+		return strings.TrimSpace(forwarded)
+	}
+
+	// Check X-Real-IP header (used by some proxies)
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		return strings.TrimSpace(realIP)
+	}
+
+	// Fall back to RemoteAddr
+	// RemoteAddr includes port, so strip it
+	if idx := strings.LastIndex(r.RemoteAddr, ":"); idx != -1 {
+		return r.RemoteAddr[:idx]
+	}
+
+	return r.RemoteAddr
 }

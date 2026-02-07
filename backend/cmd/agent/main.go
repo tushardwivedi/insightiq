@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -18,12 +19,16 @@ import (
 	"insightiq/backend/internal/cache"
 	"insightiq/backend/internal/connectors"
 	"insightiq/backend/internal/embedding"
+	"insightiq/backend/internal/events"
 	httpserver "insightiq/backend/internal/http" // Fixed: Use alias to avoid conflict
 	"insightiq/backend/internal/intent"
+	"insightiq/backend/internal/jobs"
 	"insightiq/backend/internal/models"
 	"insightiq/backend/internal/repository"
 	"insightiq/backend/internal/schema"
+	"insightiq/backend/internal/security"
 	"insightiq/backend/internal/services"
+	"insightiq/backend/internal/usecases"
 	"insightiq/backend/internal/vectorstore"
 )
 
@@ -156,6 +161,42 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Initialize PII redaction service for data privacy
+	piiRedactor := security.NewDefaultPIIRedactor(logger)
+	logger.Info("PII redactor initialized successfully")
+
+	// Initialize query history use case layer
+	queryHistoryUseCase := usecases.NewQueryHistoryUseCase(queryHistoryRepo, piiRedactor, logger)
+	logger.Info("Query history use case initialized successfully")
+
+	// Initialize event system for query history tracking
+	eventPublisher := events.NewSyncEventPublisher(logger)
+	queryHistoryHandler := events.NewQueryHistoryEventHandler(queryHistoryUseCase, logger)
+	eventPublisher.Subscribe("query.executed", queryHistoryHandler)
+	logger.Info("Event system initialized successfully")
+
+	// Initialize data retention policy for automatic cleanup
+	retentionDays := getEnvOrDefaultInt("QUERY_HISTORY_RETENTION_DAYS", 90)
+	retentionCheckHours := getEnvOrDefaultInt("QUERY_HISTORY_CHECK_INTERVAL_HOURS", 24)
+
+	retentionConfig := jobs.RetentionPolicyConfig{
+		RetentionPeriod: time.Duration(retentionDays) * 24 * time.Hour,
+		CheckInterval:   time.Duration(retentionCheckHours) * time.Hour,
+	}
+
+	retentionPolicy := jobs.NewQueryHistoryRetentionPolicy(queryHistoryUseCase, retentionConfig, logger)
+
+	// Start retention policy in background
+	go func() {
+		if err := retentionPolicy.Start(ctx); err != nil {
+			logger.Error("Failed to start retention policy", "error", err)
+		}
+	}()
+
+	logger.Info("Query history retention policy started",
+		"retention_period_days", retentionDays,
+		"check_interval_hours", retentionCheckHours)
+
 	// Create initial admin user if it doesn't exist
 	go func() {
 		adminEmail := getEnvOrDefault("ADMIN_EMAIL", "admin@insightiq.local")
@@ -261,7 +302,7 @@ func main() {
 	logger.Info("RAG query service initialized successfully")
 
 	// Create enhanced analytics service (connector-only architecture)
-	enhancedAnalyticsService := services.NewEnhancedAnalyticsService(connectorService, ollamaConn, nil, nil, ragQueryService, logger)
+	enhancedAnalyticsService := services.NewEnhancedAnalyticsService(connectorService, ollamaConn, nil, nil, ragQueryService, eventPublisher, logger)
 	enhancedAnalyticsService.SetDatabase(db) // Set database for file upload queries
 
 	// Create and register agents (PostgreSQL connections disabled - using connector-only architecture)
@@ -310,7 +351,7 @@ func main() {
 	fileUploadHandler := httpserver.NewFileUploadHandler(fileUploadRepo, fileProcessor, logger)
 
 	// Create HTTP server with query history and file upload
-	httpServer := httpserver.NewServer(analyticsService, voiceService, connectorService, plannerService, authService, queryHistoryRepo, fileUploadHandler, logger) // Fixed: Use alias
+	httpServer := httpserver.NewServer(analyticsService, voiceService, connectorService, plannerService, authService, queryHistoryRepo, queryHistoryUseCase, fileUploadHandler, logger) // Fixed: Use alias
 
 	server := &http.Server{
 		Addr:              getEnvOrDefault("PORT", ":8080"),
@@ -348,6 +389,11 @@ func main() {
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer shutdownCancel()
 
+	// Stop retention policy
+	if err := retentionPolicy.Stop(); err != nil {
+		logger.Error("Error stopping retention policy", "error", err)
+	}
+
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		logger.Error("Server shutdown error", "error", err)
 	}
@@ -381,6 +427,20 @@ func performHealthCheck() {
 func getEnvOrDefault(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
+	}
+	return defaultValue
+}
+
+func getEnvOrDefaultInt(key string, defaultValue int) int {
+	if value := os.Getenv(key); value != "" {
+		if intValue, err := time.ParseDuration(value + "h"); err == nil {
+			return int(intValue.Hours())
+		}
+		// Try parsing as integer
+		var intValue int
+		if _, err := fmt.Sscanf(value, "%d", &intValue); err == nil {
+			return intValue
+		}
 	}
 	return defaultValue
 }

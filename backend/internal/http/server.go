@@ -12,28 +12,30 @@ import (
 )
 
 type Server struct {
-	analyticsService    *services.AnalyticsService
-	voiceService        *services.VoiceService
-	connectorService    *services.ConnectorService
-	plannerService      *services.PlannerService
-	authService         *services.AuthService
-	queryHistoryRepo    interface{} // repository.QueryHistoryRepository
-	fileUploadHandler   *FileUploadHandler
-	logger              *slog.Logger
-	mux                 *http.ServeMux
+	analyticsService     *services.AnalyticsService
+	voiceService         *services.VoiceService
+	connectorService     *services.ConnectorService
+	plannerService       *services.PlannerService
+	authService          *services.AuthService
+	queryHistoryRepo     interface{} // repository.QueryHistoryRepository (deprecated - use useCase)
+	queryHistoryUseCase  interface{} // usecases.QueryHistoryUseCase
+	fileUploadHandler    *FileUploadHandler
+	logger               *slog.Logger
+	mux                  *http.ServeMux
 }
 
-func NewServer(analytics *services.AnalyticsService, voice *services.VoiceService, connector *services.ConnectorService, planner *services.PlannerService, auth *services.AuthService, queryHistoryRepo interface{}, fileUploadHandler *FileUploadHandler, logger *slog.Logger) *Server {
+func NewServer(analytics *services.AnalyticsService, voice *services.VoiceService, connector *services.ConnectorService, planner *services.PlannerService, auth *services.AuthService, queryHistoryRepo interface{}, queryHistoryUseCase interface{}, fileUploadHandler *FileUploadHandler, logger *slog.Logger) *Server {
 	s := &Server{
-		analyticsService:  analytics,
-		voiceService:      voice,
-		connectorService:  connector,
-		plannerService:    planner,
-		authService:       auth,
-		queryHistoryRepo:  queryHistoryRepo,
-		fileUploadHandler: fileUploadHandler,
-		logger:            logger,
-		mux:               http.NewServeMux(),
+		analyticsService:    analytics,
+		voiceService:        voice,
+		connectorService:    connector,
+		plannerService:      planner,
+		authService:         auth,
+		queryHistoryRepo:    queryHistoryRepo,
+		queryHistoryUseCase: queryHistoryUseCase,
+		fileUploadHandler:   fileUploadHandler,
+		logger:              logger,
+		mux:                 http.NewServeMux(),
 	}
 
 	s.setupRoutes()
@@ -103,6 +105,14 @@ func (s *Server) setupRoutes() {
 		// Import needed in handler
 		s.mux.HandleFunc("/api/query-history", s.withAuth(s.handleQueryHistory))
 		s.mux.HandleFunc("/api/query-history/stats", s.withAuth(s.handleQueryHistoryStats))
+	}
+
+	// GDPR compliance routes
+	if s.queryHistoryUseCase != nil {
+		s.mux.HandleFunc("/api/gdpr/user-data", s.withAuth(s.handleGDPRUserData))
+		s.mux.HandleFunc("/api/gdpr/export", s.withAuth(s.handleGDPRExport))
+		s.mux.HandleFunc("/api/gdpr/portable-data", s.withAuth(s.handleGDPRPortableData))
+		s.mux.HandleFunc("/api/gdpr/compliance-report", s.withAuth(s.handleGDPRComplianceReport))
 	}
 
 	// Protected file upload routes

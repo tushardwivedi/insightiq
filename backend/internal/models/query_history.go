@@ -18,6 +18,9 @@ type QueryHistory struct {
 	ExecutionTime int64                  `json:"execution_time_ms" db:"execution_time_ms"` // milliseconds
 	Status        string                 `json:"status" db:"status"`                       // "success", "error", "partial"
 	ErrorMessage  string                 `json:"error_message,omitempty" db:"error_message"`
+	IPAddress     string                 `json:"ip_address,omitempty" db:"ip_address"`
+	UserAgent     string                 `json:"user_agent,omitempty" db:"user_agent"`
+	DataRedacted  bool                   `json:"data_redacted" db:"data_redacted"`
 	CreatedAt     time.Time              `json:"created_at" db:"created_at"`
 }
 
