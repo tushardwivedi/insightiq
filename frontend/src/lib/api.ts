@@ -66,6 +66,10 @@ class ApiClient {
         throw new Error(`API Error: ${response.status} - ${sanitizedError}`);
       }
 
+      if (response.status === 204 || response.headers.get('content-length') === '0') {
+        return undefined as T;
+      }
+
       return response.json();
     } catch (error) {
       clearTimeout(timeoutId);

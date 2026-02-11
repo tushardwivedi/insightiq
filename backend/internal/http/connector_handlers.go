@@ -169,7 +169,12 @@ func (h *ConnectorHandlers) handleDeleteConnector(w http.ResponseWriter, r *http
 		return
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "Connector deleted successfully",
+	})
 }
 
 // handleTestConnector tests an existing connector

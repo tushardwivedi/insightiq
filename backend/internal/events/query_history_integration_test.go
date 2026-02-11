@@ -2,6 +2,7 @@ package events
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"strings"
@@ -423,16 +424,43 @@ func TestIntegration_EndToEndQueryHistoryWithPII(t *testing.T) {
 			}
 		}
 
-		// User A should not be able to access User B's query by ID
+		// User A should not be able to access User B's query by ID (repo-level)
 		if len(itemsB) > 0 {
 			queryBID := itemsB[0].ID
-			_, err := repo.GetByID(ctx, queryBID, userA) // User A trying to access User B's query
+			_, err := repo.GetByID(ctx, queryBID, userA)
 			if err == nil {
-				t.Errorf("User A should NOT be able to access User B's query details")
+				t.Errorf("User A should NOT be able to access User B's query via repo")
 			}
 		}
 
-		t.Logf("✅ User isolation test passed - Users can only see their own queries")
+		// Use-case level isolation: GetQueryDetails enforces owner check
+		if len(itemsB) > 0 {
+			queryBID := itemsB[0].ID
+			_, err := useCase.GetQueryDetails(ctx, queryBID, userA)
+			if err == nil {
+				t.Errorf("Use case should reject User A accessing User B's query")
+			}
+		}
+
+		// Delete isolation: User A cannot delete User B's query
+		if len(itemsB) > 0 {
+			queryBID := itemsB[0].ID
+			err := useCase.DeleteQuery(ctx, queryBID, userA)
+			if err == nil {
+				t.Errorf("User A should NOT be able to delete User B's query")
+			}
+		}
+
+		// Verify User B's query still exists after User A's delete attempt
+		itemsBAfter, err := repo.GetByUserID(ctx, userB, 10, 0)
+		if err != nil {
+			t.Fatalf("Failed to retrieve User B queries after delete attempt: %v", err)
+		}
+		if len(itemsBAfter) != 1 {
+			t.Errorf("User B's query should survive User A's delete attempt, got %d", len(itemsBAfter))
+		}
+
+		t.Logf("✅ User isolation test passed - repo, use-case, and delete levels verified")
 	})
 
 	// Test 6: IP Address and User-Agent capture
@@ -463,7 +491,7 @@ func TestIntegration_EndToEndQueryHistoryWithPII(t *testing.T) {
 
 		for i, tc := range testCases {
 			event := &domain.QueryExecutionEvent{
-				EventID:       "evt-audit-" + string(rune(i)),
+				EventID:       fmt.Sprintf("evt-audit-%d", i),
 				UserID:        userID,
 				Timestamp:     time.Now(),
 				QueryType:     "analytics",
